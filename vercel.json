@@ -1,7 +1,7 @@
 {
   "version": 2,
   "routes": [
-    { "src": "^/$", "dest": "/optimeet.html" },
-    { "src": "^/optimeet$", "dest": "/optimeet.html" }
+    { "src": "^/$", "dest": "/index.html" },
+    { "src": "^/optimeet$", "dest": "/index.html" }
   ]
 }
