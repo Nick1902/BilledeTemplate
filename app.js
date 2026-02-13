@@ -1,5 +1,5 @@
-/* BG_SRC: relativ set fra HTML-filen `html/p.html` */
-const BG_SRC = '../img/baggrund.jpg';
+/* BG_SRC: path relative to the HTML file in the site root */
+const BG_SRC = 'img/baggrund.jpg';
 
 const OUT_W = 960;
 const OUT_H = 1200;
