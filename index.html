@@ -1,127 +1,167 @@
 <!DOCTYPE html>
-<html lang="da">
+<html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Optimeet – Lav dit kort</title>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="style.css" />
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Optimeet – Opret dit deltagerkort</title>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;900&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="preconnect" href="https://www.google.com">
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="preload" href="/fonts/PracticalSerif600.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preconnect" href="https://www.googletagmanager.com">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-<header>
-  <h1>Optimeet Messen</h1>
-  <p>Lav dit personlige deltager-kort</p>
+<header class="site-header">
+  <h1>Optimeet Messen 2026</h1>
+  <p>Opret dit professionelle netværkskort på få sekunder</p>
 </header>
 
 <div class="workspace">
 
-  <!-- VENSTRE: INDSTILLINGER -->
+  <!-- LEFT PANEL -->
   <div class="panel">
     <div class="panel-title">Dine oplysninger</div>
 
-    <!-- PORTRÆT -->
+    <!-- Photo upload -->
     <div>
-      <label>Portræt-foto</label>
-      <div class="upload-area" id="portrait-upload">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <label>Portrætfoto</label>
+      <div class="upload-area" id="upload-area">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
           <circle cx="12" cy="8" r="4"/>
           <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
         </svg>
-        <p><strong>Klik for at uploade portræt</strong><br/>JPG, PNG, WEBP</p>
+        <p><strong>Klik for at uploade foto</strong><br/>JPG, PNG, WEBP</p>
       </div>
-      <input type="file" id="portrait-file-input" accept="image/*" style="display:none" />
+      <input type="file" id="file-input" accept="image/*" style="display:none"/>
     </div>
 
-    <!-- Zoom -->
+
+
+    <!-- Zoom (hidden until photo uploaded) -->
     <div id="zoom-section" style="display:none">
-      <label>Zoom portræt</label>
+      <label>Zoom foto</label>
       <div class="zoom-row">
-        <span style="font-size:1rem">🔍</span>
-        <input type="range" id="zoom-slider" min="50" max="300" value="100" />
+        <span>🔍</span>
+        <input type="range" id="zoom-slider" min="50" max="300" value="100"/>
         <span id="zoom-val">100%</span>
       </div>
     </div>
 
-    <!-- Navn -->
+    <!-- Header -->
+    <div>
+      <label>Overskrift</label>
+      <input type="text" id="inp-header" value="Kom og mød os på optimeet messen" placeholder="Kom og mød os på optimeet messen"/>
+    </div>
+
+
+    <!-- Name -->
     <div>
       <label>Fulde navn</label>
-      <input type="text" id="inp-name" maxlength="60" />
+      <input type="text" id="inp-name" maxlength="50"/>
     </div>
 
-    <!-- Titel -->
+    <!-- Occupation -->
     <div>
-      <label>Titel / Funktion</label>
-      <input type="text" id="inp-role" maxlength="150" />
+      <label>Titel / Stilling</label>
+      <textarea id="inp-occupation" maxlength="120" placeholder="Leder af 3rd Party Meeting &amp; Event&#10;Elite Hotels"></textarea>
     </div>
 
-    <!-- Intro -->
+
+    <!-- Stand -->
     <div>
-      <label>Kort introduktion (20–40 ord)</label>
-      <textarea id="inp-intro" maxlength="400"></textarea>
-      <div class="word-count" id="word-count">0 ord</div>
+      <label>Stand nr.</label>
+      <input type="text" id="inp-stand" maxlength="4" placeholder="A12"/>
+    </div>
+    
+    <div>
+      <label>Firma logo</label>
+      <div class="upload-area" id="company-upload-area">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="8" r="4"/>
+          <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+        </svg>
+        <p><strong>Klik for at uploade logo</strong><br/>JPG, PNG, WEBP</p>
+      </div>
+      <input type="file" id="file-company-input" accept="image/*" style="display:none"/>
     </div>
 
-    <div class="tip">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5b8cff" stroke-width="2">
-        <circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>
-      </svg>
-      <span>Upload dit portræt og <strong>træk billedet</strong> rundt i rammen for det perfekte udsnit.</span>
-    </div>
-
-    <button class="btn-download" id="btn-download" disabled>
-      ⬇ &nbsp;Download kort
+    <button class="btn-download" id="btn-download">
+      ⬇ &nbsp;Hent kort
     </button>
   </div>
 
-  <!-- HØJRE: FORHÅNDSVISNING -->
+  <!-- RIGHT: PREVIEW -->
   <div class="preview-col">
-    <div class="preview-label">Forhåndsvisning</div>
+    <div class="preview-label">Forhåndsvisning — træk foto for at flytte</div>
     <div class="card-wrapper">
-      <div class="card-live">
-        <div class="card-bg" id="card-bg"></div>
-        <div class="card-logo">
-          <div class="card-logo-inner">OPTIMEET<span>MESSEN</span></div>
-        </div>
-        <div class="card-photo-box" id="photo-box">
-          <div class="drag-hint">
-            <svg width="26" height="26" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.5" viewBox="0 0 24 24">
-              <path d="M12 5v14M5 12h14"/>
-            </svg>
-            <span>Dit foto</span>
+      <div class="card-scale-container" id="scale-container">
+        <div id="card-live">
+          <div class="card-bg" id="card-bg"></div>
+          <div class="card-rays"></div>
+
+          <!-- Main content (photo + name, above the banner) -->
+          <div class="card-content">
+            <div class="card-top">
+              <img id="card-top-logo" class="top-logo" src="./2.png" alt="Event logo" onerror="this.style.display='none'" />
+              <div class="card-h1" id="live-header">Kom og mød os på optimeet messen</div>
+            </div>
+            <div class="card-bottom">
+              <div class="card-photo" id="photo-circle">
+                <div class="card-photo-inner" id="photo-inner">
+                  <div class="photo-placeholder" id="photo-placeholder">
+                    <svg width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24">
+                      <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                    </svg>
+                    <span>Dit foto</span>
+                  </div>
+                </div>
+              </div>
+              <div class="card-info">
+                <div class="card-name" id="live-name"></div>
+                <div class="card-occupation" id="live-occupation"></div>
+              </div>
+            </div>
           </div>
-        </div>
-        <!-- Mobil zoom (synlig på små skærme) -->
-        <div class="mobile-zoom" id="mobile-zoom">
-          <span>🔍</span>
-          <input type="range" id="zoom-slider-mobile" min="50" max="300" value="100" />
-          <span id="zoom-val-mobile">100%</span>
-        </div>
-        <div class="card-info">
-          <div class="card-name"    id="live-name"></div>
-          <div class="card-role"    id="live-role"></div>
-          <div class="card-divider" id="live-divider" style="display:none"></div>
-          <div class="card-intro"   id="live-intro"></div>
-        </div>
-      </div>
+
+          <!-- ── BOTTOM BANNER (hardcoded) ── -->
+<div class="card-banner">
+  <!-- 1. Firma logo -->
+  <div class="banner-logo-area">
+    <img id="banner-company-img" class="banner-logo-image" src="" alt="Firma logo" style="display:none" onerror="this.style.display='none'" />
+    <div class="banner-logo-placeholder" id="banner-logo-placeholder">
+      <div class="banner-logo-text">Dit Logo</div>
     </div>
   </div>
 
+  <!-- 2. Stand nummer (kun synlig når udfyldt) -->
+  <div class="banner-stand-block" id="banner-stand-block">
+    <span class="banner-stand-label">Stand</span>
+    <span class="banner-stand-number" id="live-stand"></span>
+  </div>
+
+  <!-- 3. Divider -->
+  <div class="banner-divider"></div>
+
+  <!-- 4. Event info -->
+  <div class="banner-info">
+    <div class="banner-event-name">Optimeet Messen</div>
+    <div class="banner-meta">
+      <div class="banner-meta-row"><div class="banner-meta-dot"></div><span>Torsdag 12. Marts 2026</span></div>
+      <div class="banner-meta-row"><div class="banner-meta-dot"></div><span>Kl. 10:00 - 17:00</span></div>
+      <div class="banner-meta-row"><div class="banner-meta-dot"></div><span>Bella Arena, København</span></div>
+    </div>
+  </div>
 </div>
 
-<script src="app.js"></script>
+        </div><!-- /#card-live -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="script.js"></script>
 </body>
-</html>
-<!doctype html>
-<html lang="da">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Optimeet – Redirect</title>
-    <meta http-equiv="refresh" content="0; url=optimeet.html">
-    <script>location.replace('optimeet.html');</script>
-  </head>
-  <body>
-    Hvis du ikke viderestilles automatisk, klik her: <a href="optimeet.html">Åbn appen</a>.
-  </body>
 </html>
