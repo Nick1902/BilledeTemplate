@@ -316,10 +316,10 @@ document.getElementById('btn-download').addEventListener('click', function() {
         const name = document.getElementById('inp-name').value.trim().replace(/\s+/g, '-') || 'attendee';
         const filename = `optimeet-card-${name}.png`;
 
-        // Detect iOS devices
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        // Detect mobile devices (iPhone, iPad, Android)
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-        function finalizeDownload(href, cleanup) {
+        function fallbackDownload(href, cleanup) {
           const a = document.createElement('a');
           a.style.display = 'none';
           a.href = href;
@@ -339,35 +339,39 @@ document.getElementById('btn-download').addEventListener('click', function() {
             canvas.toBlob(async blob => {
               if (!blob) throw new Error('toBlob gav ikke en blob');
               
-              // iOS: Use Web Share API to allow saving to Photos
-              if (isIOS && navigator.share) {
-                try {
-                  const file = new File([blob], filename, { type: 'image/png' });
-                  await navigator.share({
-                    files: [file],
-                    title: 'Optimeet Kort',
-                    text: 'Mit Optimeet netværkskort'
-                  });
-                  btn.textContent = '⬇ \u00a0Hent kort';
-                  btn.classList.remove('loading');
-                } catch (shareErr) {
-                  // If share fails or is cancelled, fall back to download
-                  if (shareErr.name !== 'AbortError') {
-                    const url = URL.createObjectURL(blob);
-                    finalizeDownload(url, () => URL.revokeObjectURL(url));
-                  } else {
+              // Use Web Share API only on mobile devices
+              if (isMobile && navigator.share && navigator.canShare) {
+                const file = new File([blob], filename, { type: 'image/png' });
+                const shareData = {
+                  files: [file],
+                  title: 'Optimeet Kort',
+                  text: 'Mit Optimeet netværkskort'
+                };
+                
+                if (navigator.canShare(shareData)) {
+                  try {
+                    await navigator.share(shareData);
                     btn.textContent = '⬇ \u00a0Hent kort';
                     btn.classList.remove('loading');
+                    return;
+                  } catch (shareErr) {
+                    // If user cancels share, just reset button
+                    if (shareErr.name === 'AbortError') {
+                      btn.textContent = '⬇ \u00a0Hent kort';
+                      btn.classList.remove('loading');
+                      return;
+                    }
+                    // Otherwise fall through to download
                   }
                 }
-              } else {
-                // Non-iOS or no share API: regular download
-                const url = URL.createObjectURL(blob);
-                finalizeDownload(url, () => URL.revokeObjectURL(url));
               }
+              
+              // Desktop or fallback: regular download
+              const url = URL.createObjectURL(blob);
+              fallbackDownload(url, () => URL.revokeObjectURL(url));
             }, 'image/png');
           } else {
-            finalizeDownload(canvas.toDataURL('image/png'), null);
+            fallbackDownload(canvas.toDataURL('image/png'), null);
           }
         } catch (err) {
           console.error('Download error:', err);
