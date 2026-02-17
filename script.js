@@ -339,30 +339,32 @@ document.getElementById('btn-download').addEventListener('click', function() {
             canvas.toBlob(async blob => {
               if (!blob) throw new Error('toBlob gav ikke en blob');
               
-              // Use Web Share API only on mobile devices
-              if (isMobile && navigator.share && navigator.canShare) {
-                const file = new File([blob], filename, { type: 'image/png' });
-                const shareData = {
-                  files: [file],
-                  title: 'Optimeet Kort',
-                  text: 'Mit Optimeet netværkskort'
-                };
-                
-                if (navigator.canShare(shareData)) {
-                  try {
-                    await navigator.share(shareData);
+              // Use Web Share API only on mobile devices  
+              if (isMobile && navigator.share) {
+                try {
+                  // Create file with proper MIME type
+                  const file = new File([blob], filename, { 
+                    type: 'image/png',
+                    lastModified: Date.now()
+                  });
+                  
+                  // Share the file - this should trigger iOS share sheet
+                  await navigator.share({
+                    files: [file]
+                  });
+                  
+                  btn.textContent = '⬇ \u00a0Hent kort';
+                  btn.classList.remove('loading');
+                  return;
+                } catch (shareErr) {
+                  // If user cancels share, just reset button
+                  if (shareErr.name === 'AbortError') {
                     btn.textContent = '⬇ \u00a0Hent kort';
                     btn.classList.remove('loading');
                     return;
-                  } catch (shareErr) {
-                    // If user cancels share, just reset button
-                    if (shareErr.name === 'AbortError') {
-                      btn.textContent = '⬇ \u00a0Hent kort';
-                      btn.classList.remove('loading');
-                      return;
-                    }
-                    // Otherwise fall through to download
                   }
+                  // If share fails, fall through to download
+                  console.log('Share failed, falling back to download:', shareErr);
                 }
               }
               
