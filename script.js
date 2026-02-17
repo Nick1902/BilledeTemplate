@@ -108,8 +108,8 @@
       imgEl = document.createElement('img');
       imgEl.src = ev.target.result;
       // Use contain so we show the full image by default (no automatic crop)
-      imgEl.style.cssText = 'position:absolute;width:100%;height:100%;object-fit:contain;object-position:center;cursor:grab;user-select:none;-webkit-user-drag:none;';
-      imgX = 0; imgY = 0; zoom = 100;
+imgEl.style.cssText = 'position:absolute;width:100%;height:100%;object-fit:cover;object-position:center;cursor:grab;user-select:none;-webkit-user-drag:none;';
+        imgX = 0; imgY = 0; zoom = 100;
       zoomSlider.value = 100;
       zoomVal.textContent = '100%';
       applyTransform();
@@ -137,6 +137,7 @@
     if (!imgEl) return;
     const scale = zoom / 100;
     imgEl.style.transform = `translate(${imgX}px, ${imgY}px) scale(${scale})`;
+    imgEl.style.objectFit = 'contain';
   }
 
   function enableDrag() {
@@ -210,18 +211,13 @@
   }
 
   /* ── DOWNLOAD ── */
-  document.getElementById('btn-download').addEventListener('click', function() {
+document.getElementById('btn-download').addEventListener('click', function() {
     const btn = this;
     btn.textContent = '⏳  Genererer…';
     btn.classList.add('loading');
 
     const wrapper = document.createElement('div');
-    wrapper.style.position = 'fixed';
-    wrapper.style.left = '-20000px';
-    wrapper.style.top = '0';
-    wrapper.style.width = CARD_WIDTH + 'px';
-    wrapper.style.height = CARD_HEIGHT + 'px';
-    wrapper.style.overflow = 'hidden';
+    wrapper.style.cssText = `position:fixed;left:-20000px;top:0;width:${CARD_WIDTH}px;height:${CARD_HEIGHT}px;overflow:hidden;`;
 
     const clone = scaleCont.cloneNode(true);
     clone.style.width = CARD_WIDTH + 'px';
@@ -230,88 +226,115 @@
 
     const clonedCardLive = clone.querySelector('#card-live');
     if (clonedCardLive) {
-      clonedCardLive.style.position = 'absolute';
-      clonedCardLive.style.top = '0';
-      clonedCardLive.style.left = '0';
-      clonedCardLive.style.width = CARD_WIDTH + 'px';
-      clonedCardLive.style.height = CARD_HEIGHT + 'px';
-      clonedCardLive.style.transform = 'scale(1)';
-      clonedCardLive.style.transformOrigin = 'top left';
-      clonedCardLive.style.overflow = 'hidden';
-    }
-
-    const clonedScaleCont = clone.querySelector('.card-scale-container');
-    if (clonedScaleCont) {
-      clonedScaleCont.style.width = CARD_WIDTH + 'px';
-      clonedScaleCont.style.height = CARD_HEIGHT + 'px';
-      clonedScaleCont.style.aspectRatio = '4 / 5';
-      clonedScaleCont.style.overflow = 'hidden';
+      clonedCardLive.style.cssText += `;position:absolute;top:0;left:0;width:${CARD_WIDTH}px;height:${CARD_HEIGHT}px;transform:scale(1);transform-origin:top left;overflow:hidden;`;
     }
 
     wrapper.appendChild(clone);
     document.body.appendChild(wrapper);
 
-    const captureScale = Math.max(2, Math.round(window.devicePixelRatio || 2));
-    const target = clonedCardLive || clone;
+    // ── Erstat clonens <img> med et canvas der tegner billedet korrekt ──
+    function fixPhotoInClone() {
+      if (!imgEl || !imgEl.src) return Promise.resolve();
 
-    html2canvas(target, {
-      width: CARD_WIDTH,
-      height: CARD_HEIGHT,
-      scale: captureScale,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: null,
-      logging: false
-    }).then(canvas => {
-      // Remove off-screen clone
-      document.body.removeChild(wrapper);
+      const clonedPhotoInner = clone.querySelector('#photo-inner');
+      if (!clonedPhotoInner) return Promise.resolve();
 
-      const name = document.getElementById('inp-name').value.trim().replace(/\s+/g, '-') || 'attendee';
-      const filename = `optimeet-card-${name}.png`;
+      // Find dimensions af photo-boksen i fuld (1:1) skala
+      const photoW = clonedPhotoInner.offsetWidth  || photoInner.offsetWidth;
+      const photoH = clonedPhotoInner.offsetHeight || photoInner.offsetHeight;
 
-      // Prefer binary blob download (more reliable and memory-friendly)
-      function finalizeDownload(href, cleanup) {
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = href;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => {
-          try { a.remove(); } catch (e) {}
-          if (cleanup) cleanup();
-        }, 1000);
-        btn.textContent = '⬇ \u00a0Hent kort';
-        btn.classList.remove('loading');
-      }
+      return new Promise(resolve => {
+        const nativeImg = new Image();
+        nativeImg.onload = () => {
+          const cvs = document.createElement('canvas');
+          cvs.width  = photoW;
+          cvs.height = photoH;
+          const ctx = cvs.getContext('2d');
 
-      try {
-        if (canvas.toBlob) {
-          canvas.toBlob(function(blob) {
-            if (!blob) {
-              throw new Error('toBlob gav ikke en blob');
-            }
-            const url = URL.createObjectURL(blob);
-            finalizeDownload(url, () => URL.revokeObjectURL(url));
-          }, 'image/png');
-        } else {
-          // Fallback: data URL
-          const dataUrl = canvas.toDataURL('image/png');
-          finalizeDownload(dataUrl, null);
+          // Beregn cover-scale (samme som object-fit: cover)
+          const coverScale = Math.max(photoW / nativeImg.naturalWidth, photoH / nativeImg.naturalHeight) * (zoom / 100);
+          const scaledW = nativeImg.naturalWidth  * coverScale;
+          const scaledH = nativeImg.naturalHeight * coverScale;
+
+          // Centrer + anvend brugerens drag-offset
+          const drawX = (photoW - scaledW) / 2 + imgX;
+          const drawY = (photoH - scaledH) / 2 + imgY;
+
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(0, 0, photoW, photoH);
+          ctx.clip();
+          ctx.drawImage(nativeImg, drawX, drawY, scaledW, scaledH);
+          ctx.restore();
+
+          // Sæt canvas ind i stedet for den clonede img
+          cvs.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;';
+          const clonedImg = clonedPhotoInner.querySelector('img');
+          if (clonedImg) clonedImg.remove();
+          clonedPhotoInner.appendChild(cvs);
+
+          resolve();
+        };
+        nativeImg.src = imgEl.src;
+      });
+    }
+
+    fixPhotoInClone().then(() => {
+      const captureScale = Math.max(2, Math.round(window.devicePixelRatio || 2));
+      const target = clonedCardLive || clone;
+
+      html2canvas(target, {
+        width: CARD_WIDTH,
+        height: CARD_HEIGHT,
+        scale: captureScale,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: null,
+        logging: false
+      }).then(canvas => {
+        document.body.removeChild(wrapper);
+
+        const name = document.getElementById('inp-name').value.trim().replace(/\s+/g, '-') || 'attendee';
+        const filename = `optimeet-card-${name}.png`;
+
+        function finalizeDownload(href, cleanup) {
+          const a = document.createElement('a');
+          a.style.display = 'none';
+          a.href = href;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => {
+            try { a.remove(); } catch (e) {}
+            if (cleanup) cleanup();
+          }, 1000);
+          btn.textContent = '⬇ \u00a0Hent kort';
+          btn.classList.remove('loading');
         }
-      } catch (err) {
-        console.error('Download error:', err);
+
+        try {
+          if (canvas.toBlob) {
+            canvas.toBlob(blob => {
+              if (!blob) throw new Error('toBlob gav ikke en blob');
+              const url = URL.createObjectURL(blob);
+              finalizeDownload(url, () => URL.revokeObjectURL(url));
+            }, 'image/png');
+          } else {
+            finalizeDownload(canvas.toDataURL('image/png'), null);
+          }
+        } catch (err) {
+          console.error('Download error:', err);
+          btn.textContent = '⬇ \u00a0Hent kort';
+          btn.classList.remove('loading');
+          alert('Download mislykkedes pga. en sikkerhedsbegrænsning.');
+        }
+      }).catch(err => {
+        if (wrapper.parentNode) document.body.removeChild(wrapper);
+        console.error('html2canvas error:', err);
         btn.textContent = '⬇ \u00a0Hent kort';
         btn.classList.remove('loading');
-        alert('Download mislykkedes pga. en sikkerhedsbegrænsning. Åbn DevTools for at se fejlen, eller prøv at genindlæse siden.');
-      }
-    }).catch((err) => {
-      if (wrapper.parentNode) document.body.removeChild(wrapper);
-      console.error('html2canvas error:', err);
-      btn.textContent = '⬇ \u00a0Hent kort';
-      btn.classList.remove('loading');
-      alert('Download mislykkedes. Åbn DevTools og tjek konsollen for detaljer.');
+        alert('Download mislykkedes. Åbn DevTools og tjek konsollen for detaljer.');
+      });
     });
   });
-
 })();
