@@ -60,6 +60,11 @@
   const zoomSection = document.getElementById('zoom-section');
   const zoomSlider  = document.getElementById('zoom-slider');
   const zoomVal     = document.getElementById('zoom-val');
+  
+  // Floating zoom controls for mobile
+  const floatingZoom = document.getElementById('floating-zoom');
+  const floatingZoomSlider = document.getElementById('floating-zoom-slider');
+  const floatingZoomVal = document.getElementById('floating-zoom-val');
 
   uploadArea.addEventListener('click', () => fileInput.click());
   fileInput.addEventListener('change', handleFile);
@@ -115,6 +120,7 @@ imgEl.style.cssText = 'position:absolute;width:100%;height:100%;object-fit:cover
       applyTransform();
       photoInner.appendChild(imgEl);
       zoomSection.style.display = 'block';
+      floatingZoom.classList.add('active');
       uploadArea.querySelector('p').innerHTML = '<strong>Klik for at ændre foto</strong>';
       enableDrag();
     };
@@ -192,10 +198,23 @@ imgEl.style.cssText = 'position:absolute;width:100%;height:100%;object-fit:cover
     if (imgEl) imgEl.style.cursor = 'grab';
   }
 
-  zoomSlider.addEventListener('input', function() {
-    zoom = parseInt(this.value);
-    zoomVal.textContent = zoom + '%';
+  // Sync both zoom sliders
+  function updateZoom(value) {
+    zoom = parseInt(value);
+    const zoomText = zoom + '%';
+    zoomVal.textContent = zoomText;
+    floatingZoomVal.textContent = zoomText;
+    zoomSlider.value = zoom;
+    floatingZoomSlider.value = zoom;
     applyTransform();
+  }
+  
+  zoomSlider.addEventListener('input', function() {
+    updateZoom(this.value);
+  });
+  
+  floatingZoomSlider.addEventListener('input', function() {
+    updateZoom(this.value);
   });
 
   /* ── BACKGROUND IMAGE ── */
@@ -297,6 +316,9 @@ document.getElementById('btn-download').addEventListener('click', function() {
         const name = document.getElementById('inp-name').value.trim().replace(/\s+/g, '-') || 'attendee';
         const filename = `optimeet-card-${name}.png`;
 
+        // Detect iOS devices
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
         function finalizeDownload(href, cleanup) {
           const a = document.createElement('a');
           a.style.display = 'none';
@@ -314,10 +336,35 @@ document.getElementById('btn-download').addEventListener('click', function() {
 
         try {
           if (canvas.toBlob) {
-            canvas.toBlob(blob => {
+            canvas.toBlob(async blob => {
               if (!blob) throw new Error('toBlob gav ikke en blob');
-              const url = URL.createObjectURL(blob);
-              finalizeDownload(url, () => URL.revokeObjectURL(url));
+              
+              // iOS: Use Web Share API to allow saving to Photos
+              if (isIOS && navigator.share) {
+                try {
+                  const file = new File([blob], filename, { type: 'image/png' });
+                  await navigator.share({
+                    files: [file],
+                    title: 'Optimeet Kort',
+                    text: 'Mit Optimeet netværkskort'
+                  });
+                  btn.textContent = '⬇ \u00a0Hent kort';
+                  btn.classList.remove('loading');
+                } catch (shareErr) {
+                  // If share fails or is cancelled, fall back to download
+                  if (shareErr.name !== 'AbortError') {
+                    const url = URL.createObjectURL(blob);
+                    finalizeDownload(url, () => URL.revokeObjectURL(url));
+                  } else {
+                    btn.textContent = '⬇ \u00a0Hent kort';
+                    btn.classList.remove('loading');
+                  }
+                }
+              } else {
+                // Non-iOS or no share API: regular download
+                const url = URL.createObjectURL(blob);
+                finalizeDownload(url, () => URL.revokeObjectURL(url));
+              }
             }, 'image/png');
           } else {
             finalizeDownload(canvas.toDataURL('image/png'), null);
