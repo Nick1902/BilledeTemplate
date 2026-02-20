@@ -132,7 +132,7 @@ imgEl.style.cssText = 'position:absolute;width:100%;height:100%;object-fit:cover
     reader.onload = ev => {
       if (bannerCompanyImg) {
         bannerCompanyImg.src = ev.target.result;
-        bannerCompanyImg.style.display = '';
+        bannerCompanyImg.style.display = 'block';
       }
       if (bannerLogoPlaceholder) bannerLogoPlaceholder.style.display = 'none';
     };
@@ -313,11 +313,13 @@ document.getElementById('btn-download').addEventListener('click', function() {
       }).then(canvas => {
         document.body.removeChild(wrapper);
 
+        const outputMime = 'image/png'; // Change to 'image/jpeg' for JPG output.
+        const outputExt = outputMime === 'image/jpeg' ? 'jpg' : 'png';
         const name = document.getElementById('inp-name').value.trim().replace(/\s+/g, '-') || 'attendee';
-        const filename = `optimeet-card-${name}.png`;
+        const filename = `optimeet-card-${name}.${outputExt}`;
 
-        // Detect mobile devices (iPhone, iPad, Android)
-        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        // iPhone only: use share sheet so user can choose "Save Image" to Photos.
+        const isIPhone = /iPhone/.test(navigator.userAgent);
 
         function fallbackDownload(href, cleanup) {
           const a = document.createElement('a');
@@ -339,41 +341,64 @@ document.getElementById('btn-download').addEventListener('click', function() {
             canvas.toBlob(async blob => {
               if (!blob) throw new Error('toBlob gav ikke en blob');
               
-              // Use Web Share API only on mobile devices  
-              if (isMobile && navigator.share) {
+              // iPhone: use share sheet so user can choose "Save Image" to Photos.
+              if (isIPhone && navigator.share) {
                 try {
-                  // Create file with proper MIME type
-                  const file = new File([blob], filename, { 
-                    type: 'image/png',
+                  const file = new File([blob], filename, {
+                    type: outputMime,
                     lastModified: Date.now()
                   });
-                  
-                  // Share the file - this should trigger iOS share sheet
-                  await navigator.share({
-                    files: [file]
-                  });
-                  
+
+                  const canShareFile = typeof navigator.canShare === 'function'
+                    ? navigator.canShare({ files: [file] })
+                    : true;
+
+                  if (canShareFile) {
+                    await navigator.share({ files: [file], title: filename });
+                    btn.textContent = '⬇ \u00a0Hent kort';
+                    btn.classList.remove('loading');
+                    return;
+                  }
+
+                  const iOSBlobUrl = URL.createObjectURL(blob);
+                  window.open(iOSBlobUrl, '_blank', 'noopener');
+                  setTimeout(() => URL.revokeObjectURL(iOSBlobUrl), 30000);
                   btn.textContent = '⬇ \u00a0Hent kort';
                   btn.classList.remove('loading');
                   return;
                 } catch (shareErr) {
-                  // If user cancels share, just reset button
                   if (shareErr.name === 'AbortError') {
                     btn.textContent = '⬇ \u00a0Hent kort';
                     btn.classList.remove('loading');
                     return;
                   }
-                  // If share fails, fall through to download
-                  console.log('Share failed, falling back to download:', shareErr);
+
+                  const iOSBlobUrl = URL.createObjectURL(blob);
+                  window.open(iOSBlobUrl, '_blank', 'noopener');
+                  setTimeout(() => URL.revokeObjectURL(iOSBlobUrl), 30000);
+                  btn.textContent = '⬇ \u00a0Hent kort';
+                  btn.classList.remove('loading');
+                  return;
                 }
               }
-              
-              // Desktop or fallback: regular download
+
+              // Desktop/non-iOS: regular file download.
               const url = URL.createObjectURL(blob);
               fallbackDownload(url, () => URL.revokeObjectURL(url));
-            }, 'image/png');
+            }, outputMime);
           } else {
-            fallbackDownload(canvas.toDataURL('image/png'), null);
+            const dataUrl = canvas.toDataURL(outputMime);
+            if (isIPhone) {
+              const popup = window.open('', '_blank', 'noopener');
+              if (popup) {
+                popup.document.write(`<img src="${dataUrl}" style="max-width:100%;height:auto;display:block;margin:0 auto;" alt="Optimeet card">`);
+                popup.document.close();
+              }
+              btn.textContent = '⬇ \\u00a0Hent kort';
+              btn.classList.remove('loading');
+            } else {
+              fallbackDownload(dataUrl, null);
+            }
           }
         } catch (err) {
           console.error('Download error:', err);
@@ -391,3 +416,7 @@ document.getElementById('btn-download').addEventListener('click', function() {
     });
   });
 })();
+
+
+
+
