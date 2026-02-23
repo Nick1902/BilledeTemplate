@@ -270,10 +270,10 @@ document.getElementById('btn-download').addEventListener('click', function() {
           cvs.height = photoH;
           const ctx = cvs.getContext('2d');
 
-          // Beregn cover-scale (samme som object-fit: cover)
-          const coverScale = Math.max(photoW / nativeImg.naturalWidth, photoH / nativeImg.naturalHeight) * (zoom / 100);
-          const scaledW = nativeImg.naturalWidth  * coverScale;
-          const scaledH = nativeImg.naturalHeight * coverScale;
+          // Match preview behavior (object-fit: contain) so download framing is identical.
+          const containScale = Math.min(photoW / nativeImg.naturalWidth, photoH / nativeImg.naturalHeight) * (zoom / 100);
+          const scaledW = nativeImg.naturalWidth  * containScale;
+          const scaledH = nativeImg.naturalHeight * containScale;
 
           // Centrer + anvend brugerens drag-offset
           const drawX = (photoW - scaledW) / 2 + imgX;
@@ -297,7 +297,7 @@ document.getElementById('btn-download').addEventListener('click', function() {
         nativeImg.src = imgEl.src;
       });
     }
-
+    
     fixPhotoInClone().then(() => {
       const captureScale = Math.max(2, Math.round(window.devicePixelRatio || 2));
       const target = clonedCardLive || clone;
@@ -360,11 +360,8 @@ document.getElementById('btn-download').addEventListener('click', function() {
                     return;
                   }
 
-                  const iOSBlobUrl = URL.createObjectURL(blob);
-                  window.open(iOSBlobUrl, '_blank', 'noopener');
-                  setTimeout(() => URL.revokeObjectURL(iOSBlobUrl), 30000);
-                  btn.textContent = '⬇ \u00a0Hent kort';
-                  btn.classList.remove('loading');
+                  const url = URL.createObjectURL(blob);
+                  fallbackDownload(url, () => URL.revokeObjectURL(url));
                   return;
                 } catch (shareErr) {
                   if (shareErr.name === 'AbortError') {
@@ -373,11 +370,8 @@ document.getElementById('btn-download').addEventListener('click', function() {
                     return;
                   }
 
-                  const iOSBlobUrl = URL.createObjectURL(blob);
-                  window.open(iOSBlobUrl, '_blank', 'noopener');
-                  setTimeout(() => URL.revokeObjectURL(iOSBlobUrl), 30000);
-                  btn.textContent = '⬇ \u00a0Hent kort';
-                  btn.classList.remove('loading');
+                  const url = URL.createObjectURL(blob);
+                  fallbackDownload(url, () => URL.revokeObjectURL(url));
                   return;
                 }
               }
@@ -388,17 +382,7 @@ document.getElementById('btn-download').addEventListener('click', function() {
             }, outputMime);
           } else {
             const dataUrl = canvas.toDataURL(outputMime);
-            if (isIPhone) {
-              const popup = window.open('', '_blank', 'noopener');
-              if (popup) {
-                popup.document.write(`<img src="${dataUrl}" style="max-width:100%;height:auto;display:block;margin:0 auto;" alt="Optimeet card">`);
-                popup.document.close();
-              }
-              btn.textContent = '⬇ \\u00a0Hent kort';
-              btn.classList.remove('loading');
-            } else {
-              fallbackDownload(dataUrl, null);
-            }
+            fallbackDownload(dataUrl, null);
           }
         } catch (err) {
           console.error('Download error:', err);
@@ -416,7 +400,3 @@ document.getElementById('btn-download').addEventListener('click', function() {
     });
   });
 })();
-
-
-
-
