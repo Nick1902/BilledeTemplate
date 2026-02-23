@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Optimeet – Opret dit deltagerkort</title>
+<title>Optimeet – Opret dit deltagerkort</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Raleway:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
-  <link rel="preconnect" href="https://www.googletagmanager.com">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <link rel="stylesheet" href="styles.css">
+<link rel="preconnect" href="https://www.googletagmanager.com">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
@@ -18,10 +18,36 @@
   <p>Opret dit professionelle netværkskort på få sekunder</p>
 </header>
 
+<!-- ── MOBILE TAB BAR (hidden on desktop) ── -->
+<nav class="mobile-tabs" id="mobile-tabs">
+  <button class="mobile-tab-btn active" id="tab-edit-btn" onclick="switchTab('edit')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+    </svg>
+    Udfyld
+  </button>
+  <button class="mobile-tab-btn" id="tab-preview-btn" onclick="switchTab('preview')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+      <circle cx="12" cy="12" r="3"/>
+    </svg>
+    Se kort
+  </button>
+</nav>
+
+<!-- ── MOBILE PROGRESS BADGES (hidden on desktop) ── -->
+<div class="mobile-steps" id="mobile-steps">
+  <span class="step-badge todo" id="step-photo"><span class="dot"></span>Foto</span>
+  <span class="step-badge todo" id="step-name"><span class="dot"></span>Navn</span>
+  <span class="step-badge todo" id="step-title"><span class="dot"></span>Titel</span>
+  <span class="step-badge todo" id="step-logo"><span class="dot"></span>Logo</span>
+</div>
+
 <div class="workspace">
 
-  <!-- LEFT PANEL -->
-  <div class="panel">
+  <!-- LEFT PANEL / EDIT TAB -->
+  <div class="panel tab-active" id="pane-edit">
     <div class="panel-title">Dine oplysninger</div>
 
     <!-- Photo upload -->
@@ -37,9 +63,7 @@
       <input type="file" id="file-input" accept="image/*" style="display:none"/>
     </div>
 
-
-
-    <!-- Zoom (hidden until photo uploaded) -->
+    <!-- Zoom (hidden until photo uploaded, desktop only) -->
     <div id="zoom-section" style="display:none">
       <label>Zoom foto</label>
       <div class="zoom-row">
@@ -55,7 +79,6 @@
       <input type="text" id="inp-header" value="Kom og mød os på optimeet messen" placeholder="Kom og mød os på optimeet messen"/>
     </div>
 
-
     <!-- Name -->
     <div>
       <label>Fulde navn</label>
@@ -68,44 +91,53 @@
       <textarea id="inp-occupation" maxlength="120" placeholder="Leder af 3rd Party Meeting &amp; Event&#10;Elite Hotels"></textarea>
     </div>
 
-
-  
-    
+    <!-- Company logo -->
     <div>
       <label>Firma logo</label>
       <div class="upload-area" id="company-upload-area">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <circle cx="12" cy="8" r="4"/>
-          <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+          <circle cx="8.5" cy="8.5" r="1.5"/>
+          <polyline points="21 15 16 10 5 21"/>
         </svg>
         <p><strong>Klik for at uploade logo</strong><br/>JPG, PNG, WEBP</p>
       </div>
       <input type="file" id="file-company-input" accept="image/*" style="display:none"/>
     </div>
+
+    <!-- "Go to preview" CTA — mobile only, shown inside edit tab -->
+    <button class="mobile-preview-cta" onclick="switchTab('preview')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+        <circle cx="12" cy="12" r="3"/>
+      </svg>
+      Se dit kort
+    </button>
+
+    <!-- Desktop download button (hidden on mobile) -->
     <button class="btn-download" id="btn-download">
       ⬇ &nbsp;Hent kort
     </button>
-  </div>
+  </div><!-- /#pane-edit -->
 
-  <!-- RIGHT: PREVIEW -->
-  <div class="preview-col">
+  <!-- RIGHT: PREVIEW TAB -->
+  <div class="preview-col" id="pane-preview">
     <div class="preview-label">Forhåndsvisning — træk foto for at flytte</div>
-    
-    <!-- Floating zoom control for mobile -->
+
+    <!-- Floating zoom control (shown when photo uploaded) -->
     <div class="floating-zoom" id="floating-zoom">
-      <span class="zoom-label">Foto zoom</span>
+      <span class="zoom-label">Zoom</span>
       <span class="zoom-icon">🔍</span>
       <input type="range" id="floating-zoom-slider" min="50" max="300" value="100"/>
       <span class="zoom-value" id="floating-zoom-val">100%</span>
     </div>
-  
+
     <div class="card-wrapper">
       <div class="card-scale-container" id="scale-container">
         <div id="card-live">
           <div class="card-bg" id="card-bg"></div>
           <div class="card-rays"></div>
-          <!-- Main content (photo + name, above the banner) -->
-           
+
           <div class="card-content">
             <div class="card-top">
               <img id="card-top-logo" class="top-logo" src="./2.png" alt="Event logo" onerror="this.style.display='none'" />
@@ -129,34 +161,49 @@
                 <div class="profile-logo-area">
                   <img id="banner-company-img" class="profile-logo-image" src="" alt="Firma logo" style="display:none" onerror="this.style.display='none'" />
                   <div class="profile-logo-placeholder" id="banner-logo-placeholder">
-                    <div class="profile-logo-text">Dit Logo</div>
-                  </div>                </div>
+                    <div class="profile-logo-text">Logo</div>
+                  </div>
+                </div>
                 <div class="card-occupation" id="live-occupation"></div>
               </div>
             </div>
           </div>
 
-          <!-- ── BOTTOM BANNER (hardcoded) ── -->
-<div class="card-banner">
-  <!-- Event info -->
-  <div class="banner-info">
-    <div class="banner-event-name">Optimeet Messen</div>
-    <div class="banner-meta">
-      <div class="banner-meta-row"><div class="banner-meta-dot"></div><span>Torsdag 12. marts 2026</span></div>
-      <div class="banner-meta-row"><div class="banner-meta-dot"></div><span>Kl. 09:00 - 16:30</span></div>
-      <div class="banner-meta-row"><div class="banner-meta-dot"></div><span>Bella Arena, København</span></div>
-    </div>
-  </div>
-</div>
+          <!-- ── BOTTOM BANNER ── -->
+          <div class="card-banner">
+            <div class="banner-info">
+              <div class="banner-event-name">Optimeet Messen</div>
+              <div class="banner-meta">
+                <div class="banner-meta-row"><div class="banner-meta-dot"></div><span>Torsdag 12. marts 2026</span></div>
+                <div class="banner-meta-row"><div class="banner-meta-dot"></div><span>Kl. 09:00 - 16:30</span></div>
+                <div class="banner-meta-row"><div class="banner-meta-dot"></div><span>Bella Arena, København</span></div>
+              </div>
+            </div>
+          </div>
 
         </div><!-- /#card-live -->
       </div>
     </div>
-  </div>
+
+    <!-- "Back to edit" link on preview tab (mobile) -->
+    <button class="mobile-preview-cta" onclick="switchTab('edit')" style="margin-top:8px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+      </svg>
+      Rediger oplysninger
+    </button>
+  </div><!-- /.preview-col -->
+
+</div><!-- /.workspace -->
+
+<!-- ── MOBILE FIXED DOWNLOAD BAR ── -->
+<div class="mobile-download-bar" id="mobile-download-bar">
+  <button class="btn-download" id="btn-download-mobile">
+    ⬇ &nbsp;Hent kort
+  </button>
 </div>
 
 <script src="script.js"></script>
 </body>
 </html>
-
-

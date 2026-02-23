@@ -3,8 +3,43 @@
   const CARD_WIDTH = 800;
   const CARD_HEIGHT = 1000;
 
-  /* ── SCALE card-live to fit its container ── */
-  const cardLive = document.getElementById('card-live');
+  /* ══════════════════════════════════════════
+     MOBILE TAB SWITCHING
+  ══════════════════════════════════════════ */
+  window.switchTab = function(tab) {
+    const editPane    = document.getElementById('pane-edit');
+    const previewPane = document.getElementById('pane-preview');
+    const editBtn     = document.getElementById('tab-edit-btn');
+    const previewBtn  = document.getElementById('tab-preview-btn');
+
+    if (tab === 'edit') {
+      editPane.classList.add('tab-active');
+      previewPane.classList.remove('tab-active');
+      editBtn.classList.add('active');
+      previewBtn.classList.remove('active');
+    } else {
+      previewPane.classList.add('tab-active');
+      editPane.classList.remove('tab-active');
+      previewBtn.classList.add('active');
+      editBtn.classList.remove('active');
+      // Re-scale card when preview tab becomes visible
+      scaleCard();
+    }
+  };
+
+  /* ══════════════════════════════════════════
+     PROGRESS BADGES
+  ══════════════════════════════════════════ */
+  function updateBadge(id, isDone) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.className = 'step-badge ' + (isDone ? 'done' : 'todo');
+  }
+
+  /* ══════════════════════════════════════════
+     SCALE card-live to fit its container
+  ══════════════════════════════════════════ */
+  const cardLive  = document.getElementById('card-live');
   const scaleCont = document.getElementById('scale-container');
 
   function scaleCard() {
@@ -15,22 +50,32 @@
   scaleCard();
   window.addEventListener('resize', scaleCard);
 
-  /* ── LIVE TEXT UPDATES ── */
+  /* ══════════════════════════════════════════
+     LIVE TEXT UPDATES
+  ══════════════════════════════════════════ */
   function bind(inputId, liveId) {
-    const inp = document.getElementById(inputId);
+    const inp  = document.getElementById(inputId);
     const live = document.getElementById(liveId);
     if (!inp || !live) return;
     inp.addEventListener('input', () => { live.textContent = inp.value; });
   }
 
-  bind('inp-header',     'live-header');
-  bind('inp-subheader',  'live-subheader');
-  bind('inp-name',       'live-name');
+  bind('inp-header',    'live-header');
+  bind('inp-subheader', 'live-subheader');
+  bind('inp-name',      'live-name');
 
+  // Name badge
+  const nameInp = document.getElementById('inp-name');
+  if (nameInp) {
+    nameInp.addEventListener('input', () => {
+      updateBadge('step-name', nameInp.value.trim().length > 0);
+    });
+  }
+
+  // Stand / optional
   const standInp   = document.getElementById('inp-stand');
   const standLive  = document.getElementById('live-stand');
   const standBlock = document.getElementById('banner-stand-block');
-
   if (standInp && standLive && standBlock) {
     const updateStand = () => {
       const v = standInp.value.trim();
@@ -41,13 +86,19 @@
     updateStand();
   }
 
-  // Occupation allows line breaks
-  document.getElementById('inp-occupation').addEventListener('input', function() {
-    document.getElementById('live-occupation').innerHTML = this.value.replace(/\n/g, '<br>');
-  });
+  // Occupation allows line breaks + badge
+  const occInp = document.getElementById('inp-occupation');
+  if (occInp) {
+    occInp.addEventListener('input', function() {
+      document.getElementById('live-occupation').innerHTML = this.value.replace(/\n/g, '<br>');
+      updateBadge('step-title', this.value.trim().length > 0);
+    });
+  }
 
-  /* ── PORTRAIT PHOTO UPLOAD + DRAG ── */
-  let imgEl = null;
+  /* ══════════════════════════════════════════
+     PORTRAIT PHOTO UPLOAD + DRAG
+  ══════════════════════════════════════════ */
+  let imgEl      = null;
   let dragActive = false;
   let lastX = 0, lastY = 0;
   let imgX = 0, imgY = 0;
@@ -60,17 +111,16 @@
   const zoomSection = document.getElementById('zoom-section');
   const zoomSlider  = document.getElementById('zoom-slider');
   const zoomVal     = document.getElementById('zoom-val');
-  
-  // Floating zoom controls for mobile
-  const floatingZoom = document.getElementById('floating-zoom');
+
+  const floatingZoom       = document.getElementById('floating-zoom');
   const floatingZoomSlider = document.getElementById('floating-zoom-slider');
-  const floatingZoomVal = document.getElementById('floating-zoom-val');
+  const floatingZoomVal    = document.getElementById('floating-zoom-val');
 
   uploadArea.addEventListener('click', () => fileInput.click());
   fileInput.addEventListener('change', handleFile);
 
-  uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.style.borderColor = 'var(--accent)'; });
-  uploadArea.addEventListener('dragleave', () => { uploadArea.style.borderColor = ''; });
+  uploadArea.addEventListener('dragover',  e => { e.preventDefault(); uploadArea.style.borderColor = 'var(--accent)'; });
+  uploadArea.addEventListener('dragleave', ()  => { uploadArea.style.borderColor = ''; });
   uploadArea.addEventListener('drop', e => {
     e.preventDefault();
     uploadArea.style.borderColor = '';
@@ -78,16 +128,16 @@
     if (file && file.type.startsWith('image/')) loadImage(file);
   });
 
-  // Company logo upload handlers
-  const companyUploadArea = document.getElementById('company-upload-area');
-  const fileCompanyInput = document.getElementById('file-company-input');
-  const bannerCompanyImg = document.getElementById('banner-company-img');
+  /* ── Company logo ── */
+  const companyUploadArea    = document.getElementById('company-upload-area');
+  const fileCompanyInput     = document.getElementById('file-company-input');
+  const bannerCompanyImg     = document.getElementById('banner-company-img');
   const bannerLogoPlaceholder = document.getElementById('banner-logo-placeholder');
 
   if (companyUploadArea && fileCompanyInput) {
     companyUploadArea.addEventListener('click', () => fileCompanyInput.click());
-    companyUploadArea.addEventListener('dragover', e => { e.preventDefault(); companyUploadArea.style.borderColor = 'var(--accent)'; });
-    companyUploadArea.addEventListener('dragleave', () => { companyUploadArea.style.borderColor = ''; });
+    companyUploadArea.addEventListener('dragover',  e => { e.preventDefault(); companyUploadArea.style.borderColor = 'var(--accent)'; });
+    companyUploadArea.addEventListener('dragleave', ()  => { companyUploadArea.style.borderColor = ''; });
     companyUploadArea.addEventListener('drop', e => {
       e.preventDefault();
       companyUploadArea.style.borderColor = '';
@@ -112,16 +162,18 @@
       if (imgEl) imgEl.remove();
       imgEl = document.createElement('img');
       imgEl.src = ev.target.result;
-      // Use contain so we show the full image by default (no automatic crop)
-imgEl.style.cssText = 'position:absolute;width:100%;height:100%;object-fit:cover;object-position:center;cursor:grab;user-select:none;-webkit-user-drag:none;';
-        imgX = 0; imgY = 0; zoom = 100;
+      imgEl.style.cssText = 'position:absolute;width:100%;height:100%;object-fit:cover;object-position:center;cursor:grab;user-select:none;-webkit-user-drag:none;';
+      imgX = 0; imgY = 0; zoom = 100;
       zoomSlider.value = 100;
       zoomVal.textContent = '100%';
+      floatingZoomSlider.value = 100;
+      floatingZoomVal.textContent = '100%';
       applyTransform();
       photoInner.appendChild(imgEl);
       zoomSection.style.display = 'block';
       floatingZoom.classList.add('active');
       uploadArea.querySelector('p').innerHTML = '<strong>Klik for at ændre foto</strong>';
+      updateBadge('step-photo', true);
       enableDrag();
     };
     reader.readAsDataURL(file);
@@ -135,6 +187,8 @@ imgEl.style.cssText = 'position:absolute;width:100%;height:100%;object-fit:cover
         bannerCompanyImg.style.display = 'block';
       }
       if (bannerLogoPlaceholder) bannerLogoPlaceholder.style.display = 'none';
+      companyUploadArea.querySelector('p').innerHTML = '<strong>Klik for at ændre logo</strong>';
+      updateBadge('step-logo', true);
     };
     reader.readAsDataURL(file);
   }
@@ -147,7 +201,7 @@ imgEl.style.cssText = 'position:absolute;width:100%;height:100%;object-fit:cover
   }
 
   function enableDrag() {
-    photoInner.addEventListener('mousedown', startDrag);
+    photoInner.addEventListener('mousedown',  startDrag);
     photoInner.addEventListener('touchstart', startDragTouch, { passive: true });
   }
 
@@ -208,16 +262,13 @@ imgEl.style.cssText = 'position:absolute;width:100%;height:100%;object-fit:cover
     floatingZoomSlider.value = zoom;
     applyTransform();
   }
-  
-  zoomSlider.addEventListener('input', function() {
-    updateZoom(this.value);
-  });
-  
-  floatingZoomSlider.addEventListener('input', function() {
-    updateZoom(this.value);
-  });
 
-  /* ── BACKGROUND IMAGE ── */
+  zoomSlider.addEventListener('input', function() { updateZoom(this.value); });
+  floatingZoomSlider.addEventListener('input', function() { updateZoom(this.value); });
+
+  /* ══════════════════════════════════════════
+     BACKGROUND IMAGE
+  ══════════════════════════════════════════ */
   const BG_IMAGE_URL = './baggrund.jpg';
   const cardBg = document.getElementById('card-bg');
   if (BG_IMAGE_URL && BG_IMAGE_URL !== 'YOUR_BACKGROUND_IMAGE_URL_HERE') {
@@ -229,9 +280,10 @@ imgEl.style.cssText = 'position:absolute;width:100%;height:100%;object-fit:cover
     cardBg.style.backgroundPosition = 'center';
   }
 
-  /* ── DOWNLOAD ── */
-document.getElementById('btn-download').addEventListener('click', function() {
-    const btn = this;
+  /* ══════════════════════════════════════════
+     DOWNLOAD  (shared logic, two buttons)
+  ══════════════════════════════════════════ */
+  function doDownload(btn) {
     btn.textContent = '⏳  Genererer…';
     btn.classList.add('loading');
 
@@ -239,7 +291,7 @@ document.getElementById('btn-download').addEventListener('click', function() {
     wrapper.style.cssText = `position:fixed;left:-20000px;top:0;width:${CARD_WIDTH}px;height:${CARD_HEIGHT}px;overflow:hidden;`;
 
     const clone = scaleCont.cloneNode(true);
-    clone.style.width = CARD_WIDTH + 'px';
+    clone.style.width  = CARD_WIDTH  + 'px';
     clone.style.height = CARD_HEIGHT + 'px';
     clone.style.boxSizing = 'border-box';
 
@@ -251,14 +303,11 @@ document.getElementById('btn-download').addEventListener('click', function() {
     wrapper.appendChild(clone);
     document.body.appendChild(wrapper);
 
-    // ── Erstat clonens <img> med et canvas der tegner billedet korrekt ──
     function fixPhotoInClone() {
       if (!imgEl || !imgEl.src) return Promise.resolve();
-
       const clonedPhotoInner = clone.querySelector('#photo-inner');
       if (!clonedPhotoInner) return Promise.resolve();
 
-      // Find dimensions af photo-boksen i fuld (1:1) skala
       const photoW = clonedPhotoInner.offsetWidth  || photoInner.offsetWidth;
       const photoH = clonedPhotoInner.offsetHeight || photoInner.offsetHeight;
 
@@ -270,12 +319,9 @@ document.getElementById('btn-download').addEventListener('click', function() {
           cvs.height = photoH;
           const ctx = cvs.getContext('2d');
 
-          // Match preview behavior (object-fit: contain) so download framing is identical.
           const containScale = Math.min(photoW / nativeImg.naturalWidth, photoH / nativeImg.naturalHeight) * (zoom / 100);
           const scaledW = nativeImg.naturalWidth  * containScale;
           const scaledH = nativeImg.naturalHeight * containScale;
-
-          // Centrer + anvend brugerens drag-offset
           const drawX = (photoW - scaledW) / 2 + imgX;
           const drawY = (photoH - scaledH) / 2 + imgY;
 
@@ -286,18 +332,16 @@ document.getElementById('btn-download').addEventListener('click', function() {
           ctx.drawImage(nativeImg, drawX, drawY, scaledW, scaledH);
           ctx.restore();
 
-          // Sæt canvas ind i stedet for den clonede img
           cvs.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;';
           const clonedImg = clonedPhotoInner.querySelector('img');
           if (clonedImg) clonedImg.remove();
           clonedPhotoInner.appendChild(cvs);
-
           resolve();
         };
         nativeImg.src = imgEl.src;
       });
     }
-    
+
     fixPhotoInClone().then(() => {
       const captureScale = Math.max(2, Math.round(window.devicePixelRatio || 2));
       const target = clonedCardLive || clone;
@@ -313,12 +357,11 @@ document.getElementById('btn-download').addEventListener('click', function() {
       }).then(canvas => {
         document.body.removeChild(wrapper);
 
-        const outputMime = 'image/png'; // Change to 'image/jpeg' for JPG output.
-        const outputExt = outputMime === 'image/jpeg' ? 'jpg' : 'png';
+        const outputMime = 'image/png';
+        const outputExt  = outputMime === 'image/jpeg' ? 'jpg' : 'png';
         const name = document.getElementById('inp-name').value.trim().replace(/\s+/g, '-') || 'attendee';
         const filename = `optimeet-card-${name}.${outputExt}`;
 
-        // iPhone only: use share sheet so user can choose "Save Image" to Photos.
         const isIPhone = /iPhone/.test(navigator.userAgent);
 
         function fallbackDownload(href, cleanup) {
@@ -332,71 +375,63 @@ document.getElementById('btn-download').addEventListener('click', function() {
             try { a.remove(); } catch (e) {}
             if (cleanup) cleanup();
           }, 1000);
-          btn.textContent = '⬇ \u00a0Hent kort';
-          btn.classList.remove('loading');
+          resetBtn(btn);
+        }
+
+        function resetBtn(b) {
+          b.textContent = '⬇ \u00a0Hent kort';
+          b.classList.remove('loading');
         }
 
         try {
           if (canvas.toBlob) {
             canvas.toBlob(async blob => {
-              if (!blob) throw new Error('toBlob gav ikke en blob');
-              
-              // iPhone: use share sheet so user can choose "Save Image" to Photos.
+              if (!blob) throw new Error('toBlob returned null');
+
               if (isIPhone && navigator.share) {
                 try {
-                  const file = new File([blob], filename, {
-                    type: outputMime,
-                    lastModified: Date.now()
-                  });
-
-                  const canShareFile = typeof navigator.canShare === 'function'
-                    ? navigator.canShare({ files: [file] })
-                    : true;
-
+                  const file = new File([blob], filename, { type: outputMime, lastModified: Date.now() });
+                  const canShareFile = typeof navigator.canShare === 'function' ? navigator.canShare({ files: [file] }) : true;
                   if (canShareFile) {
                     await navigator.share({ files: [file], title: filename });
-                    btn.textContent = '⬇ \u00a0Hent kort';
-                    btn.classList.remove('loading');
+                    resetBtn(btn);
                     return;
                   }
-
                   const url = URL.createObjectURL(blob);
                   fallbackDownload(url, () => URL.revokeObjectURL(url));
                   return;
                 } catch (shareErr) {
-                  if (shareErr.name === 'AbortError') {
-                    btn.textContent = '⬇ \u00a0Hent kort';
-                    btn.classList.remove('loading');
-                    return;
-                  }
-
+                  if (shareErr.name === 'AbortError') { resetBtn(btn); return; }
                   const url = URL.createObjectURL(blob);
                   fallbackDownload(url, () => URL.revokeObjectURL(url));
                   return;
                 }
               }
 
-              // Desktop/non-iOS: regular file download.
               const url = URL.createObjectURL(blob);
               fallbackDownload(url, () => URL.revokeObjectURL(url));
             }, outputMime);
           } else {
-            const dataUrl = canvas.toDataURL(outputMime);
-            fallbackDownload(dataUrl, null);
+            fallbackDownload(canvas.toDataURL(outputMime), null);
           }
         } catch (err) {
           console.error('Download error:', err);
-          btn.textContent = '⬇ \u00a0Hent kort';
-          btn.classList.remove('loading');
+          resetBtn(btn);
           alert('Download mislykkedes pga. en sikkerhedsbegrænsning.');
         }
       }).catch(err => {
         if (wrapper.parentNode) document.body.removeChild(wrapper);
         console.error('html2canvas error:', err);
-        btn.textContent = '⬇ \u00a0Hent kort';
-        btn.classList.remove('loading');
+        resetBtn(btn);
         alert('Download mislykkedes. Åbn DevTools og tjek konsollen for detaljer.');
       });
     });
-  });
+  }
+
+  // Wire up both buttons
+  const btnDesktop = document.getElementById('btn-download');
+  const btnMobile  = document.getElementById('btn-download-mobile');
+  if (btnDesktop) btnDesktop.addEventListener('click', () => doDownload(btnDesktop));
+  if (btnMobile)  btnMobile.addEventListener('click',  () => doDownload(btnMobile));
+
 })();
