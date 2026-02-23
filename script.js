@@ -2,6 +2,8 @@
 
   const CARD_WIDTH = 800;
   const CARD_HEIGHT = 1000;
+  const MAX_LOGO_UPLOAD_WIDTH = 2000;
+  const MAX_LOGO_UPLOAD_HEIGHT = 2000;
 
   /* ══════════════════════════════════════════
      MOBILE TAB SWITCHING
@@ -22,15 +24,9 @@
       editPane.classList.remove('tab-active');
       previewBtn.classList.add('active');
       editBtn.classList.remove('active');
-      // Re-scale card when preview tab becomes visible
       scaleCard();
     }
   };
-
-  /* ══════════════════════════════════════════
-     PROGRESS BADGES
-  ══════════════════════════════════════════ */
-
 
   /* ══════════════════════════════════════════
      SCALE card-live to fit its container
@@ -56,40 +52,8 @@
     inp.addEventListener('input', () => { live.textContent = inp.value; });
   }
 
-  bind('inp-header',    'live-header');
-  bind('inp-subheader', 'live-subheader');
-  bind('inp-name',      'live-name');
-
-  // Name badge
-  const nameInp = document.getElementById('inp-name');
-  if (nameInp) {
-    nameInp.addEventListener('input', () => {
-      updateBadge('step-name', nameInp.value.trim().length > 0);
-    });
-  }
-
-  // Stand / optional
-  const standInp   = document.getElementById('inp-stand');
-  const standLive  = document.getElementById('live-stand');
-  const standBlock = document.getElementById('banner-stand-block');
-  if (standInp && standLive && standBlock) {
-    const updateStand = () => {
-      const v = standInp.value.trim();
-      standLive.textContent = v;
-      standBlock.classList.toggle('visible', v.length > 0);
-    };
-    standInp.addEventListener('input', updateStand);
-    updateStand();
-  }
-
-  // Occupation allows line breaks + badge
-  const occInp = document.getElementById('inp-occupation');
-  if (occInp) {
-    occInp.addEventListener('input', function() {
-      document.getElementById('live-occupation').innerHTML = this.value.replace(/\n/g, '<br>');
-      updateBadge('step-title', this.value.trim().length > 0);
-    });
-  }
+  bind('inp-header', 'live-header');
+  bind('inp-name',   'live-name');
 
   /* ══════════════════════════════════════════
      PORTRAIT PHOTO UPLOAD + DRAG
@@ -125,9 +89,9 @@
   });
 
   /* ── Company logo ── */
-  const companyUploadArea    = document.getElementById('company-upload-area');
-  const fileCompanyInput     = document.getElementById('file-company-input');
-  const bannerCompanyImg     = document.getElementById('banner-company-img');
+  const companyUploadArea     = document.getElementById('company-upload-area');
+  const fileCompanyInput      = document.getElementById('file-company-input');
+  const bannerCompanyImg      = document.getElementById('banner-company-img');
   const bannerLogoPlaceholder = document.getElementById('banner-logo-placeholder');
 
   if (companyUploadArea && fileCompanyInput) {
@@ -168,25 +132,52 @@
       photoInner.appendChild(imgEl);
       zoomSection.style.display = 'block';
       floatingZoom.classList.add('active');
-      uploadArea.querySelector('p').innerHTML = '<strong>Klik for at ændre foto</strong>';
-      updateBadge('step-photo', true);
+      uploadArea.querySelector('p').innerHTML = '<strong>Klik for at skifte foto</strong>';
       enableDrag();
     };
     reader.readAsDataURL(file);
   }
 
   function loadCompanyImage(file) {
-    const reader = new FileReader();
-    reader.onload = ev => {
-      if (bannerCompanyImg) {
-        bannerCompanyImg.src = ev.target.result;
-        bannerCompanyImg.style.display = 'block';
+    const probeUrl = URL.createObjectURL(file);
+    const probeImg = new Image();
+
+    probeImg.onload = () => {
+      const tooLarge = probeImg.naturalWidth > MAX_LOGO_UPLOAD_WIDTH || probeImg.naturalHeight > MAX_LOGO_UPLOAD_HEIGHT;
+      URL.revokeObjectURL(probeUrl);
+
+      if (tooLarge) {
+        alert(`Logoet er for stort (${probeImg.naturalWidth}x${probeImg.naturalHeight}px). Maks er ${MAX_LOGO_UPLOAD_WIDTH}x${MAX_LOGO_UPLOAD_HEIGHT}px.`);
+        if (fileCompanyInput) fileCompanyInput.value = '';
+        return;
       }
-      if (bannerLogoPlaceholder) bannerLogoPlaceholder.style.display = 'none';
-      companyUploadArea.querySelector('p').innerHTML = '<strong>Klik for at ændre logo</strong>';
-      updateBadge('step-logo', true);
+
+      const reader = new FileReader();
+      reader.onload = ev => {
+        if (bannerCompanyImg) {
+          bannerCompanyImg.src = ev.target.result;
+          bannerCompanyImg.style.display = 'block';
+        }
+        // Hide placeholder once real logo is loaded
+        if (bannerLogoPlaceholder) bannerLogoPlaceholder.style.display = 'none';
+        // Show size slider and reset to 100%
+        logoScale = 100;
+        logoSizeSlider.value = 100;
+        logoSizeVal.textContent = '100%';
+        applyLogoSize();
+        if (logoSizeSection) logoSizeSection.style.display = 'block';
+        companyUploadArea.querySelector('p').innerHTML = '<strong>Klik for at ændre logo</strong>';
+      };
+      reader.readAsDataURL(file);
     };
-    reader.readAsDataURL(file);
+
+    probeImg.onerror = () => {
+      URL.revokeObjectURL(probeUrl);
+      alert('Kunne ikke læse logo-filen.');
+      if (fileCompanyInput) fileCompanyInput.value = '';
+    };
+
+    probeImg.src = probeUrl;
   }
 
   function applyTransform() {
@@ -355,7 +346,7 @@
         document.body.removeChild(wrapper);
 
         const outputMime = 'image/png';
-        const outputExt  = outputMime === 'image/jpeg' ? 'jpg' : 'png';
+        const outputExt  = 'png';
         const name = document.getElementById('inp-name').value.trim().replace(/\s+/g, '-') || 'attendee';
         const filename = `optimeet-card-${name}.${outputExt}`;
 
@@ -388,13 +379,11 @@
               if (isIOS && navigator.share) {
                 try {
                   const file = new File([blob], filename, { type: outputMime, lastModified: Date.now() });
-                  // iOS: use share sheet so user can choose "Save Image" to Photos.
                   await navigator.share({ files: [file], title: filename });
                   resetBtn(btn);
                   return;
                 } catch (shareErr) {
                   if (shareErr.name === 'AbortError') { resetBtn(btn); return; }
-                  // If share fails on iOS, open image so user can long-press and save to Photos.
                   const iOSUrl = URL.createObjectURL(blob);
                   window.open(iOSUrl, '_blank', 'noopener');
                   setTimeout(() => URL.revokeObjectURL(iOSUrl), 30000);
@@ -404,7 +393,6 @@
               }
 
               if (isIOS && !navigator.share) {
-                // Older iOS fallback: open image and let user save to Photos manually.
                 const iOSUrl = URL.createObjectURL(blob);
                 window.open(iOSUrl, '_blank', 'noopener');
                 setTimeout(() => URL.revokeObjectURL(iOSUrl), 30000);
@@ -439,6 +427,27 @@
         resetBtn(btn);
         alert('Download mislykkedes. Åbn DevTools og tjek konsollen for detaljer.');
       });
+    });
+  }
+
+  /* ── Logo size slider ── */
+  const logoSizeSection = document.getElementById('logo-size-section');
+  const logoSizeSlider  = document.getElementById('logo-size-slider');
+  const logoSizeVal     = document.getElementById('logo-size-val');
+  let logoScale = 100;
+
+  function applyLogoSize() {
+    if (!bannerCompanyImg) return;
+    const px = Math.round(160 * (logoScale / 100));
+    bannerCompanyImg.style.maxWidth  = px + 'px';
+    bannerCompanyImg.style.maxHeight = Math.round(100 * (logoScale / 100)) + 'px';
+  }
+
+  if (logoSizeSlider && logoSizeVal) {
+    logoSizeSlider.addEventListener('input', function() {
+      logoScale = parseInt(this.value, 10) || 100;
+      logoSizeVal.textContent = logoScale + '%';
+      applyLogoSize();
     });
   }
 

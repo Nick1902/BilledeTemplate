@@ -32,12 +32,9 @@
       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
       <circle cx="12" cy="12" r="3"/>
     </svg>
-    Se kort
+    Forhåndsvisning
   </button>
 </nav>
-
-<!-- ── MOBILE PROGRESS BADGES (hidden on desktop) ── -->
-
 
 <div class="workspace">
 
@@ -74,16 +71,10 @@
       <input type="text" id="inp-header" value="Kom og mød os på optimeet messen" placeholder="Kom og mød os på optimeet messen"/>
     </div>
 
-    <!-- Name -->
+    <!-- Stand -->
     <div>
-      <label>Fulde navn</label>
-      <input type="text" id="inp-name" maxlength="50"/>
-    </div>
-
-    <!-- Occupation -->
-    <div>
-      <label>Titel / Stilling</label>
-      <textarea id="inp-occupation" maxlength="120" placeholder="Leder af 3rd Party Meeting &amp; Event&#10;Elite Hotels"></textarea>
+      <label>Stand nr.</label>
+      <input type="text" id="inp-name" maxlength="50" placeholder="F.eks. A12"/>
     </div>
 
     <!-- Company logo -->
@@ -98,6 +89,16 @@
         <p><strong>Klik for at uploade logo</strong><br/>JPG, PNG, WEBP</p>
       </div>
       <input type="file" id="file-company-input" accept="image/*" style="display:none"/>
+    </div>
+
+    <!-- Logo size (hidden until logo uploaded) -->
+    <div id="logo-size-section" style="display:none">
+      <label>Logo størrelse</label>
+      <div class="zoom-row">
+        <span>🖼️</span>
+        <input type="range" id="logo-size-slider" min="50" max="300" value="100"/>
+        <span id="logo-size-val">100%</span>
+      </div>
     </div>
 
     <!-- "Go to preview" CTA — mobile only, shown inside edit tab -->
@@ -138,7 +139,9 @@
               <img id="card-top-logo" class="top-logo" src="./2.png" alt="Event logo" onerror="this.style.display='none'" />
               <div class="card-h1" id="live-header">Kom og mød os på optimeet messen</div>
             </div>
+
             <div class="card-bottom">
+              <!-- Portrait photo -->
               <div class="card-photo" id="photo-circle">
                 <div class="card-photo-inner" id="photo-inner">
                   <div class="photo-placeholder" id="photo-placeholder">
@@ -149,18 +152,24 @@
                   </div>
                 </div>
               </div>
+
+              <!-- Right column: logo + stand label -->
               <div class="card-info">
-                <div class="card-name" id="live-name"></div>
-                <div class="card-occupation" id="live-occupation"></div>
                 <div class="profile-logo-area">
+                  <!-- Logo image (shown when uploaded) -->
                   <img id="banner-company-img" class="profile-logo-image" src="" alt="Firma logo" style="display:none" onerror="this.style.display='none'" />
+                  <!-- Logo placeholder (shown before upload) -->
                   <div class="profile-logo-placeholder" id="banner-logo-placeholder">
                     <div class="profile-logo-text">Logo</div>
                   </div>
                 </div>
+                <!-- Stand label -->
+                <div class="card-stand-label">Stand</div>
+                <div class="card-name" id="live-name"></div>
               </div>
             </div>
           </div>
+
           <!-- ── BOTTOM BANNER ── -->
           <div class="card-banner">
             <div class="banner-info">
@@ -199,5 +208,3 @@
 <script src="script.js"></script>
 </body>
 </html>
-
-
