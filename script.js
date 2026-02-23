@@ -30,11 +30,7 @@
   /* ══════════════════════════════════════════
      PROGRESS BADGES
   ══════════════════════════════════════════ */
-  function updateBadge(id, isDone) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.className = 'step-badge ' + (isDone ? 'done' : 'todo');
-  }
+
 
   /* ══════════════════════════════════════════
      SCALE card-live to fit its container
@@ -202,7 +198,7 @@
 
   function enableDrag() {
     photoInner.addEventListener('mousedown',  startDrag);
-    photoInner.addEventListener('touchstart', startDragTouch, { passive: true });
+    photoInner.addEventListener('touchstart', startDragTouch, { passive: false });
   }
 
   function startDrag(e) {
@@ -216,6 +212,7 @@
 
   function startDragTouch(e) {
     if (e.touches.length !== 1) return;
+    e.preventDefault();
     dragActive = true;
     lastX = e.touches[0].clientX;
     lastY = e.touches[0].clientY;
@@ -362,7 +359,7 @@
         const name = document.getElementById('inp-name').value.trim().replace(/\s+/g, '-') || 'attendee';
         const filename = `optimeet-card-${name}.${outputExt}`;
 
-        const isIPhone = /iPhone/.test(navigator.userAgent);
+        const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
 
         function fallbackDownload(href, cleanup) {
           const a = document.createElement('a');
@@ -388,30 +385,47 @@
             canvas.toBlob(async blob => {
               if (!blob) throw new Error('toBlob returned null');
 
-              if (isIPhone && navigator.share) {
+              if (isIOS && navigator.share) {
                 try {
                   const file = new File([blob], filename, { type: outputMime, lastModified: Date.now() });
-                  const canShareFile = typeof navigator.canShare === 'function' ? navigator.canShare({ files: [file] }) : true;
-                  if (canShareFile) {
-                    await navigator.share({ files: [file], title: filename });
-                    resetBtn(btn);
-                    return;
-                  }
-                  const url = URL.createObjectURL(blob);
-                  fallbackDownload(url, () => URL.revokeObjectURL(url));
+                  // iOS: use share sheet so user can choose "Save Image" to Photos.
+                  await navigator.share({ files: [file], title: filename });
+                  resetBtn(btn);
                   return;
                 } catch (shareErr) {
                   if (shareErr.name === 'AbortError') { resetBtn(btn); return; }
-                  const url = URL.createObjectURL(blob);
-                  fallbackDownload(url, () => URL.revokeObjectURL(url));
+                  // If share fails on iOS, open image so user can long-press and save to Photos.
+                  const iOSUrl = URL.createObjectURL(blob);
+                  window.open(iOSUrl, '_blank', 'noopener');
+                  setTimeout(() => URL.revokeObjectURL(iOSUrl), 30000);
+                  resetBtn(btn);
                   return;
                 }
+              }
+
+              if (isIOS && !navigator.share) {
+                // Older iOS fallback: open image and let user save to Photos manually.
+                const iOSUrl = URL.createObjectURL(blob);
+                window.open(iOSUrl, '_blank', 'noopener');
+                setTimeout(() => URL.revokeObjectURL(iOSUrl), 30000);
+                resetBtn(btn);
+                return;
               }
 
               const url = URL.createObjectURL(blob);
               fallbackDownload(url, () => URL.revokeObjectURL(url));
             }, outputMime);
           } else {
+            if (isIOS) {
+              const dataUrl = canvas.toDataURL(outputMime);
+              const popup = window.open('', '_blank', 'noopener');
+              if (popup) {
+                popup.document.write(`<img src="${dataUrl}" style="max-width:100%;height:auto;display:block;margin:0 auto;" alt="Optimeet card">`);
+                popup.document.close();
+              }
+              resetBtn(btn);
+              return;
+            }
             fallbackDownload(canvas.toDataURL(outputMime), null);
           }
         } catch (err) {

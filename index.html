@@ -15,7 +15,7 @@
 
 <header class="site-header">
   <h1>Optimeet Messen 2026</h1>
-  <p>Opret dit professionelle netværkskort på få sekunder</p>
+  <p>Opret dit kort</p>
 </header>
 
 <!-- ── MOBILE TAB BAR (hidden on desktop) ── -->
@@ -37,12 +37,7 @@
 </nav>
 
 <!-- ── MOBILE PROGRESS BADGES (hidden on desktop) ── -->
-<div class="mobile-steps" id="mobile-steps">
-  <span class="step-badge todo" id="step-photo"><span class="dot"></span>Foto</span>
-  <span class="step-badge todo" id="step-name"><span class="dot"></span>Navn</span>
-  <span class="step-badge todo" id="step-title"><span class="dot"></span>Titel</span>
-  <span class="step-badge todo" id="step-logo"><span class="dot"></span>Logo</span>
-</div>
+
 
 <div class="workspace">
 
@@ -126,7 +121,7 @@
 
     <!-- Floating zoom control (shown when photo uploaded) -->
     <div class="floating-zoom" id="floating-zoom">
-      <span class="zoom-label">Zoom</span>
+      <span class="zoom-label">Zoom foto</span>
       <span class="zoom-icon">🔍</span>
       <input type="range" id="floating-zoom-slider" min="50" max="300" value="100"/>
       <span class="zoom-value" id="floating-zoom-val">100%</span>
@@ -144,9 +139,6 @@
               <div class="card-h1" id="live-header">Kom og mød os på optimeet messen</div>
             </div>
             <div class="card-bottom">
-              <div class="card-name-row">
-                <div class="card-name" id="live-name"></div>
-              </div>
               <div class="card-photo" id="photo-circle">
                 <div class="card-photo-inner" id="photo-inner">
                   <div class="photo-placeholder" id="photo-placeholder">
@@ -158,17 +150,17 @@
                 </div>
               </div>
               <div class="card-info">
+                <div class="card-name" id="live-name"></div>
+                <div class="card-occupation" id="live-occupation"></div>
                 <div class="profile-logo-area">
                   <img id="banner-company-img" class="profile-logo-image" src="" alt="Firma logo" style="display:none" onerror="this.style.display='none'" />
                   <div class="profile-logo-placeholder" id="banner-logo-placeholder">
                     <div class="profile-logo-text">Logo</div>
                   </div>
                 </div>
-                <div class="card-occupation" id="live-occupation"></div>
               </div>
             </div>
           </div>
-
           <!-- ── BOTTOM BANNER ── -->
           <div class="card-banner">
             <div class="banner-info">
@@ -207,3 +199,5 @@
 <script src="script.js"></script>
 </body>
 </html>
+
+
