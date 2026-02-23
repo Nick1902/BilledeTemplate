@@ -75,6 +75,9 @@
   const floatingZoom       = document.getElementById('floating-zoom');
   const floatingZoomSlider = document.getElementById('floating-zoom-slider');
   const floatingZoomVal    = document.getElementById('floating-zoom-val');
+  const floatingLogoSizeSection = document.getElementById('floating-logo-size');
+  const floatingLogoSizeSlider  = document.getElementById('floating-logo-size-slider');
+  const floatingLogoSizeVal     = document.getElementById('floating-logo-size-val');
 
   uploadArea.addEventListener('click', () => fileInput.click());
   fileInput.addEventListener('change', handleFile);
@@ -160,12 +163,15 @@
         }
         // Hide placeholder once real logo is loaded
         if (bannerLogoPlaceholder) bannerLogoPlaceholder.style.display = 'none';
-        // Show size slider and reset to 100%
+        // Show size sliders and reset to 100%
         logoScale = 100;
-        logoSizeSlider.value = 100;
-        logoSizeVal.textContent = '100%';
+        if (logoSizeSlider) logoSizeSlider.value = '100';
+        if (logoSizeVal) logoSizeVal.textContent = '100%';
+        if (floatingLogoSizeSlider) floatingLogoSizeSlider.value = '100';
+        if (floatingLogoSizeVal) floatingLogoSizeVal.textContent = '100%';
         applyLogoSize();
         if (logoSizeSection) logoSizeSection.style.display = 'block';
+        if (floatingLogoSizeSection) floatingLogoSizeSection.classList.add('active');
         companyUploadArea.querySelector('p').innerHTML = '<strong>Klik for at ændre logo</strong>';
       };
       reader.readAsDataURL(file);
@@ -441,12 +447,22 @@
     const px = Math.round(160 * (logoScale / 100));
     bannerCompanyImg.style.maxWidth  = px + 'px';
     bannerCompanyImg.style.maxHeight = Math.round(100 * (logoScale / 100)) + 'px';
+    if (logoSizeSlider) logoSizeSlider.value = String(logoScale);
+    if (logoSizeVal) logoSizeVal.textContent = logoScale + '%';
+    if (floatingLogoSizeSlider) floatingLogoSizeSlider.value = String(logoScale);
+    if (floatingLogoSizeVal) floatingLogoSizeVal.textContent = logoScale + '%';
   }
 
   if (logoSizeSlider && logoSizeVal) {
     logoSizeSlider.addEventListener('input', function() {
       logoScale = parseInt(this.value, 10) || 100;
-      logoSizeVal.textContent = logoScale + '%';
+      applyLogoSize();
+    });
+  }
+
+  if (floatingLogoSizeSlider && floatingLogoSizeVal) {
+    floatingLogoSizeSlider.addEventListener('input', function() {
+      logoScale = parseInt(this.value, 10) || 100;
       applyLogoSize();
     });
   }
@@ -458,3 +474,4 @@
   if (btnMobile)  btnMobile.addEventListener('click',  () => doDownload(btnMobile));
 
 })();
+

@@ -15,7 +15,7 @@
 
 <header class="site-header">
   <h1>Optimeet Messen 2026</h1>
-  <p>Opret dit kort</p>
+  <p>Opret dit udstiller template</p>
 </header>
 
 <!-- ── MOBILE TAB BAR (hidden on desktop) ── -->
@@ -68,13 +68,13 @@
     <!-- Header -->
     <div>
       <label>Overskrift</label>
-      <input type="text" id="inp-header" value="Kom og mød os på optimeet messen" placeholder="Kom og mød os på optimeet messen"/>
+      <input type="text" id="inp-header" value="Kom og mød os på OPTIMEET messen" placeholder="Kom og mød os på OPTIMEET messen"/>
     </div>
 
     <!-- Stand -->
     <div>
       <label>Stand nr.</label>
-      <input type="text" id="inp-name" maxlength="50" placeholder="F.eks. A12"/>
+      <input type="text" id="inp-name" maxlength="4" placeholder="F.eks. 311"/>
     </div>
 
     <!-- Company logo -->
@@ -107,12 +107,12 @@
         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
         <circle cx="12" cy="12" r="3"/>
       </svg>
-      Se dit kort
+      Se dit billede
     </button>
 
     <!-- Desktop download button (hidden on mobile) -->
     <button class="btn-download" id="btn-download">
-      ⬇ &nbsp;Hent kort
+      ⬇ &nbsp;Hent billede
     </button>
   </div><!-- /#pane-edit -->
 
@@ -128,6 +128,12 @@
       <span class="zoom-value" id="floating-zoom-val">100%</span>
     </div>
 
+    <div class="floating-zoom" id="floating-logo-size">
+      <span class="zoom-label">Logo størrelse</span>
+      <input type="range" id="floating-logo-size-slider" min="50" max="300" value="100"/>
+      <span class="zoom-value" id="floating-logo-size-val">100%</span>
+
+    </div>
     <div class="card-wrapper">
       <div class="card-scale-container" id="scale-container">
         <div id="card-live">
@@ -137,7 +143,7 @@
           <div class="card-content">
             <div class="card-top">
               <img id="card-top-logo" class="top-logo" src="./2.png" alt="Event logo" onerror="this.style.display='none'" />
-              <div class="card-h1" id="live-header">Kom og mød os på optimeet messen</div>
+              <div class="card-h1" id="live-header">Kom og mød os på OPTIMEET messen</div>
             </div>
 
             <div class="card-bottom">
@@ -201,7 +207,7 @@
 <!-- ── MOBILE FIXED DOWNLOAD BAR ── -->
 <div class="mobile-download-bar" id="mobile-download-bar">
   <button class="btn-download" id="btn-download-mobile">
-    ⬇ &nbsp;Hent kort
+    ⬇ &nbsp;>Download billede
   </button>
 </div>
 

@@ -650,6 +650,10 @@ input[type="range"] {
     display: none !important;
   }
 
+  #logo-size-section {
+    display: none !important;
+  }
+
   .preview-label {
     align-self: center;
     text-align: center;
