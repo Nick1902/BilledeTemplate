@@ -351,9 +351,7 @@
 
   function openImageInNewTabFromCanvas(canvas) {
     const dataUrl = canvas.toDataURL('image/png');
-    const w = window.open('', '_blank');
-    if (!w) return false;
-    w.document.write(`
+    const html = `
       <html><head>
         <meta name="viewport" content="width=device-width,initial-scale=1">
         <title>Gem billede</title>
@@ -366,8 +364,19 @@
         <p>Tryk og hold på billedet → "Føj til Fotos"</p>
         <img src="${dataUrl}" alt="Optimeet card">
       </body></html>
-    `);
-    w.document.close();
+    `;
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const pageUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = pageUrl;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(pageUrl), 30000);
     return true;
   }
 
@@ -404,7 +413,7 @@
     ].join(';');
 
     const text = document.createElement('div');
-    text.textContent = 'Vælg hvordan du vil gemme billedet';
+    text.textContent = 'Gem via Del-menu';
     text.style.cssText = 'font-size:14px;opacity:0.95;padding:2px 2px 6px;';
 
     const btnShare = document.createElement('button');
@@ -412,10 +421,10 @@
     btnShare.textContent = 'Gem via Del-menu';
     btnShare.style.cssText = 'padding:12px;border-radius:10px;border:none;background:#4f7aff;color:#fff;font-weight:700;font-size:14px;cursor:pointer;';
 
-    const btnTab = document.createElement('button');
-    btnTab.type = 'button';
-    btnTab.textContent = 'Åbn billede (tryk og hold)';
-    btnTab.style.cssText = 'padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.22);background:transparent;color:#e8eaf6;font-weight:700;font-size:14px;cursor:pointer;';
+    const linkTab = document.createElement('button');
+    linkTab.type = 'button';
+    linkTab.textContent = 'Åbn billede i ny fane (alternativ)';
+    linkTab.style.cssText = 'padding:0;border:none;background:transparent;color:#9bb7ff;font-size:12px;text-decoration:underline;cursor:pointer;align-self:center;';
 
     const btnClose = document.createElement('button');
     btnClose.type = 'button';
@@ -428,10 +437,8 @@
     };
 
     btnShare.addEventListener('click', async () => {
-      if (!navigator.share) {
-        const ok = openImageInNewTabFromCanvas(canvas);
-        if (!ok) alert('Tillad popups for at gemme billedet.');
-        closeSheet();
+      if (!navigator.share || !navigator.canShare?.({ files: [file] })) {
+        alert('Deling understøttes ikke på denne enhed. Brug alternativ-linket nedenfor.');
         return;
       }
 
@@ -443,16 +450,12 @@
           closeSheet();
           return;
         }
-        const ok = openImageInNewTabFromCanvas(canvas);
-        if (!ok) alert('Tillad popups for at gemme billedet.');
-        closeSheet();
+        alert('Deling mislykkedes. Brug alternativ-linket nedenfor.');
       }
     });
 
-    btnTab.addEventListener('click', () => {
-      const ok = openImageInNewTabFromCanvas(canvas);
-      if (!ok) alert('Tillad popups for at gemme billedet.');
-      closeSheet();
+    linkTab.addEventListener('click', () => {
+      openImageInNewTabFromCanvas(canvas);
     });
 
     btnClose.addEventListener('click', closeSheet);
@@ -460,11 +463,9 @@
       if (e.target === overlay) closeSheet();
     });
 
-    if (!navigator.share) btnShare.style.display = 'none';
-
     sheet.appendChild(text);
     sheet.appendChild(btnShare);
-    sheet.appendChild(btnTab);
+    sheet.appendChild(linkTab);
     sheet.appendChild(btnClose);
     overlay.appendChild(sheet);
     document.body.appendChild(overlay);
