@@ -438,9 +438,9 @@
     });
   }
 
-  function openIOSPhotoSaveTab(canvas, mimeType) {
+  function openIOSPhotoSaveTab(canvas, mimeType, popupRef) {
     const dataUrl = canvas.toDataURL(mimeType);
-    const popup = window.open('', '_blank', 'noopener');
+    const popup = popupRef || window.open('', '_blank', 'noopener');
     if (!popup) return false;
 
     popup.document.write(`
@@ -472,6 +472,33 @@
 
     btn.textContent = '⏳ Genererer...';
     btn.classList.add('loading');
+
+    const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    let iosPopup = null;
+    let iosPopupBlocked = false;
+
+    // Must open immediately from user gesture, otherwise Safari blocks it.
+    if (isIOS) {
+      iosPopup = window.open('', '_blank');
+      if (iosPopup) {
+        iosPopup.document.write(`
+          <html>
+            <head>
+              <meta name="viewport" content="width=device-width, initial-scale=1" />
+              <title>Genererer billede...</title>
+              <style>
+                body{margin:0;background:#0b1022;color:#e8eaf6;font-family:Arial,sans-serif}
+                .wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:18px;text-align:center}
+              </style>
+            </head>
+            <body><div class="wrap">Genererer billede...</div></body>
+          </html>
+        `);
+        iosPopup.document.close();
+      } else {
+        iosPopupBlocked = true;
+      }
+    }
 
     const wrapper = document.createElement('div');
     wrapper.style.cssText = `position:fixed;left:-20000px;top:0;width:${CARD_WIDTH}px;height:${CARD_HEIGHT}px;overflow:hidden;`;
@@ -513,13 +540,12 @@
         const rawName = dom.nameInput ? dom.nameInput.value.trim() : '';
         const safeName = rawName.replace(/\s+/g, '-') || 'attendee';
         const filename = `optimeet-card-${safeName}.${outputExt}`;
-        const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
 
         // iOS: avoid blob/file-share fallback issues ("No internet connection" on save).
         // Opening a data URL image tab is the most reliable path for saving to Photos.
         if (isIOS) {
-          const opened = openIOSPhotoSaveTab(canvas, outputMime);
-          if (!opened) alert('Tillad popups for at kunne gemme billedet på iPhone.');
+          const opened = openIOSPhotoSaveTab(canvas, outputMime, iosPopup);
+          if (!opened || iosPopupBlocked) alert('Popup blev blokeret. Tillad popups og prøv igen.');
           resetDownloadButton(btn);
           return;
         }
@@ -556,6 +582,9 @@
           alert('Download mislykkedes pga. en sikkerhedsbegrænsning.');
         }
       } catch (err) {
+        if (iosPopup && !iosPopup.closed) {
+          try { iosPopup.close(); } catch (_) {}
+        }
         if (wrapper.parentNode) document.body.removeChild(wrapper);
         console.error('html2canvas error:', err);
         resetDownloadButton(btn);
