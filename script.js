@@ -328,7 +328,6 @@
     btn.classList.remove('loading');
   }
 
-
   function createDownloadFallback({ href, filename, cleanup, button }) {
     const link = document.createElement('a');
     link.style.display = 'none';
@@ -347,224 +346,6 @@
     }, 1000);
 
     resetDownloadButton(button);
-  }
-
-  // FORBEDRET: Åbn billede i ny fane med korrekt HTML/CSS til iOS
-  function openImageInNewTabFromCanvas(canvas) {
-    // Konverter canvas til blob først (bedre for iOS)
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        alert('Kunne ikke generere billede til visning.');
-        return;
-      }
-      
-      // Lav en blob URL til billedet
-      const imageUrl = URL.createObjectURL(blob);
-      
-      // Lav korrekt HTML til iOS med optimeret CSS
-      const htmlContent = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Optimeet Card</title>
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-      -webkit-tap-highlight-color: transparent;
-    }
-    
-    html, body {
-      width: 100%;
-      min-height: 100vh;
-      overflow: auto;
-    }
-    
-    body {
-      background: #000;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-      
-      /* Forhindre tekstmarkering på body */
-      user-select: none;
-      -webkit-user-select: none;
-    }
-    
-    img {
-      max-width: 100%;
-      height: auto;
-      display: block;
-      border-radius: 4px;
-      
-      /* KRITISK: Disse properties tillader iOS long-press */
-      -webkit-user-select: none;
-      -webkit-touch-callout: default;
-      user-select: none;
-      pointer-events: auto;
-    }
-    
-    .instruction {
-      position: fixed;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0, 0, 0, 0.9);
-      color: white;
-      padding: 14px 24px;
-      border-radius: 10px;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
-      font-size: 15px;
-      text-align: center;
-      z-index: 1000;
-      animation: fadeOut 5s ease-in-out forwards;
-      pointer-events: none;
-      max-width: 90%;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-    }
-    
-    @keyframes fadeOut {
-      0%, 60% { opacity: 1; }
-      100% { opacity: 0; }
-    }
-  </style>
-</head>
-<body>
-  <img src="${imageUrl}" alt="Optimeet Card">
-  <div class="instruction">👆 Hold fingeren på billedet og vælg "Gem billede"</div>
-</body>
-</html>`;
-
-      // Åbn i ny fane
-      const newTab = window.open('', '_blank');
-      if (newTab) {
-        newTab.document.open();
-        newTab.document.write(htmlContent);
-        newTab.document.close();
-      } else {
-        alert('Tillad popups i Safari for at åbne billedet.');
-      }
-    }, 'image/png');
-  }
-
-  // FORBEDRET: Vis fallback-besked hvis share fejler
-  function showIOSFallbackNotice(canvas, button, file) {
-    const existing = byId('ios-download-fallback');
-    if (existing) existing.remove();
-
-    const box = document.createElement('div');
-    box.id = 'ios-download-fallback';
-    box.style.cssText = [
-      'position:fixed',
-      'left:16px',
-      'right:16px',
-      'bottom:80px',
-      'z-index:9999',
-      'background:rgba(8,10,24,0.98)',
-      'border:2px solid rgba(255,255,255,0.2)',
-      'border-radius:16px',
-      'padding:20px',
-      'color:#fff',
-      'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif',
-      'font-size:15px',
-      'line-height:1.5',
-      'box-shadow:0 8px 32px rgba(0,0,0,0.4)'
-    ].join(';');
-
-    const title = document.createElement('div');
-    title.textContent = '📤 Vælg hvordan du vil gemme';
-    title.style.cssText = 'font-weight:600;margin-bottom:16px;font-size:16px;text-align:center;';
-
-    const btnContainer = document.createElement('div');
-    btnContainer.style.cssText = 'display:flex;flex-direction:column;gap:12px;';
-
-    // Knap 1: Prøv deling igen
-    const shareAgain = document.createElement('button');
-    shareAgain.type = 'button';
-    shareAgain.innerHTML = '📤 Prøv deling igen';
-    shareAgain.style.cssText = 'padding:14px;background:#007AFF;color:white;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;transition:opacity 0.2s;';
-    
-    shareAgain.addEventListener('touchstart', () => {
-      shareAgain.style.opacity = '0.7';
-    });
-    
-    shareAgain.addEventListener('touchend', () => {
-      shareAgain.style.opacity = '1';
-    });
-
-    shareAgain.addEventListener('click', async () => {
-      if (!navigator.share) {
-        alert('Deling understøttes ikke på denne enhed.');
-        return;
-      }
-
-      try {
-        await navigator.share({ 
-          files: [file], 
-          title: 'Optimeet card'
-        });
-        box.remove();
-        resetDownloadButton(button);
-      } catch (err) {
-        if (err.name === 'AbortError') {
-          // Bruger annullerede - lad boksen blive
-          return;
-        }
-        console.error('Share error:', err);
-        alert('Deling mislykkedes. Prøv "Åbn billede" i stedet.');
-      }
-    });
-
-    // Knap 2: Åbn i ny fane
-    const openTab = document.createElement('button');
-    openTab.type = 'button';
-    openTab.innerHTML = '🖼️ Åbn billede (hold &amp; gem)';
-    openTab.style.cssText = 'padding:14px;background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.3);border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;transition:opacity 0.2s;';
-    
-    openTab.addEventListener('touchstart', () => {
-      openTab.style.opacity = '0.7';
-    });
-    
-    openTab.addEventListener('touchend', () => {
-      openTab.style.opacity = '1';
-    });
-
-    openTab.addEventListener('click', () => {
-      openImageInNewTabFromCanvas(canvas);
-      box.remove();
-      resetDownloadButton(button);
-    });
-
-    // Luk knap
-    const closeBtn = document.createElement('button');
-    closeBtn.type = 'button';
-    closeBtn.textContent = '✕';
-    closeBtn.style.cssText = 'position:absolute;top:8px;right:8px;background:transparent;border:none;color:rgba(255,255,255,0.6);font-size:20px;cursor:pointer;padding:4px 8px;';
-    
-    closeBtn.addEventListener('click', () => {
-      box.remove();
-      resetDownloadButton(button);
-    });
-
-    btnContainer.appendChild(shareAgain);
-    btnContainer.appendChild(openTab);
-    
-    box.appendChild(closeBtn);
-    box.appendChild(title);
-    box.appendChild(btnContainer);
-    document.body.appendChild(box);
-
-    // Auto-fjern efter 20 sekunder
-    setTimeout(() => {
-      if (box.parentNode) {
-        box.remove();
-        resetDownloadButton(button);
-      }
-    }, 20000);
   }
 
   function fixPhotoInClone(clone) {
@@ -656,7 +437,7 @@
     });
   }
 
-  // FORBEDRET: iOS download med ALTID share først, derefter fallback
+  // SIMPEL: Kun share, ingen fallback
   function doDownload(btn) {
     if (!btn || !dom.scaleContainer) return;
 
@@ -704,7 +485,7 @@
         const safeName = rawName.replace(/\s+/g, '-') || 'attendee';
         const filename = `optimeet-card-${safeName}.png`;
 
-        // IOS: ALTID forsøg share først
+        // IOS: KUN share, ingen fallback
         if (isIOS) {
           canvas.toBlob(async (blob) => {
             if (!blob) {
@@ -715,31 +496,29 @@
 
             const file = new File([blob], filename, { type: 'image/png' });
             
-            // Forsøg share direkte - dette skulle virke første gang
-            if (navigator.share) {
-              try {
-                await navigator.share({ 
-                  files: [file],
-                  title: 'Optimeet card'
-                });
-                resetDownloadButton(btn);
-                return;
-              } catch (err) {
-                // Hvis bruger annullerede (AbortError), reset knap og stop
-                if (err.name === 'AbortError') {
-                  resetDownloadButton(btn);
-                  return;
-                }
-                
-                // Ved andre fejl, vis fallback-valgmuligheder
-                console.warn('Share failed:', err);
-                showIOSFallbackNotice(canvas, btn, file);
+            // Forsøg share - det er det eneste vi gør
+            if (!navigator.share) {
+              resetDownloadButton(btn);
+              alert('Din browser understøtter ikke deling. Prøv at opdatere iOS/Safari.');
+              return;
+            }
+
+            try {
+              await navigator.share({ 
+                files: [file],
+                title: 'Optimeet card'
+              });
+              resetDownloadButton(btn);
+            } catch (err) {
+              resetDownloadButton(btn);
+              if (err.name === 'AbortError') {
+                // Bruger annullerede - OK, gør intet
                 return;
               }
+              // Anden fejl
+              console.error('Share error:', err);
+              alert('Deling mislykkedes. Prøv igen.');
             }
-            
-            // Hvis share slet ikke er tilgængelig, vis fallback direkte
-            showIOSFallbackNotice(canvas, btn, file);
           }, 'image/png');
           return;
         }
