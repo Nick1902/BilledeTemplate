@@ -380,95 +380,51 @@
     return true;
   }
 
-  function showIOSSaveOptions({ file, canvas, button }) {
-    const existing = byId('ios-save-sheet');
+  function showIOSFallbackNotice(canvas, button) {
+    const existing = byId('ios-download-fallback');
     if (existing) existing.remove();
 
-    const overlay = document.createElement('div');
-    overlay.id = 'ios-save-sheet';
-    overlay.style.cssText = [
+    const box = document.createElement('div');
+    box.id = 'ios-download-fallback';
+    box.style.cssText = [
       'position:fixed',
-      'inset:0',
+      'left:16px',
+      'right:16px',
+      'bottom:16px',
       'z-index:9999',
-      'background:rgba(0,0,0,0.55)',
-      'display:flex',
-      'align-items:flex-end',
-      'justify-content:center',
-      'padding:16px',
-      'font-family:Arial,sans-serif'
-    ].join(';');
-
-    const sheet = document.createElement('div');
-    sheet.style.cssText = [
-      'width:100%',
-      'max-width:460px',
-      'background:#0b1022',
-      'border:1px solid rgba(255,255,255,0.12)',
-      'border-radius:14px',
-      'padding:14px',
+      'background:rgba(8,10,24,0.96)',
+      'border:1px solid rgba(255,255,255,0.18)',
+      'border-radius:12px',
+      'padding:10px 12px',
       'color:#e8eaf6',
-      'display:flex',
-      'flex-direction:column',
-      'gap:10px'
+      'font-family:Arial,sans-serif',
+      'font-size:13px',
+      'line-height:1.35',
+      'text-align:center'
     ].join(';');
 
     const text = document.createElement('div');
-    text.textContent = 'Gem via Del-menu';
-    text.style.cssText = 'font-size:14px;opacity:0.95;padding:2px 2px 6px;';
+    text.textContent = 'Download via Deling mislykkedes.';
 
-    const btnShare = document.createElement('button');
-    btnShare.type = 'button';
-    btnShare.textContent = 'Gem via Del-menu';
-    btnShare.style.cssText = 'padding:12px;border-radius:10px;border:none;background:#4f7aff;color:#fff;font-weight:700;font-size:14px;cursor:pointer;';
+    const link = document.createElement('button');
+    link.type = 'button';
+    link.textContent = 'Tryk her for at åbne billedet i ny fane';
+    link.style.cssText = 'margin-top:6px;padding:0;border:none;background:transparent;color:#9bb7ff;text-decoration:underline;font-size:13px;cursor:pointer;';
 
-    const linkTab = document.createElement('button');
-    linkTab.type = 'button';
-    linkTab.textContent = 'Åbn billede i ny fane (alternativ)';
-    linkTab.style.cssText = 'padding:0;border:none;background:transparent;color:#9bb7ff;font-size:12px;text-decoration:underline;cursor:pointer;align-self:center;';
-
-    const btnClose = document.createElement('button');
-    btnClose.type = 'button';
-    btnClose.textContent = 'Luk';
-    btnClose.style.cssText = 'padding:10px;border-radius:10px;border:none;background:rgba(255,255,255,0.08);color:#e8eaf6;font-size:13px;cursor:pointer;';
-
-    const closeSheet = () => {
-      overlay.remove();
+    link.addEventListener('click', () => {
+      const ok = openImageInNewTabFromCanvas(canvas);
+      if (!ok) alert('Tillad popups for at åbne billedet i ny fane.');
+      box.remove();
       resetDownloadButton(button);
-    };
-
-    btnShare.addEventListener('click', async () => {
-      if (!navigator.share || !navigator.canShare?.({ files: [file] })) {
-        alert('Deling understøttes ikke på denne enhed. Brug alternativ-linket nedenfor.');
-        return;
-      }
-
-      try {
-        await navigator.share({ files: [file], title: 'Optimeet card' });
-        closeSheet();
-      } catch (err) {
-        if (err.name === 'AbortError') {
-          closeSheet();
-          return;
-        }
-        alert('Deling mislykkedes. Brug alternativ-linket nedenfor.');
-      }
     });
 
-    linkTab.addEventListener('click', () => {
-      openImageInNewTabFromCanvas(canvas);
-    });
+    box.appendChild(text);
+    box.appendChild(link);
+    document.body.appendChild(box);
 
-    btnClose.addEventListener('click', closeSheet);
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) closeSheet();
-    });
-
-    sheet.appendChild(text);
-    sheet.appendChild(btnShare);
-    sheet.appendChild(linkTab);
-    sheet.appendChild(btnClose);
-    overlay.appendChild(sheet);
-    document.body.appendChild(overlay);
+    setTimeout(() => {
+      if (box.parentNode) box.remove();
+    }, 12000);
   }
 
   function fixPhotoInClone(clone) {
@@ -621,7 +577,20 @@
             const iosSafeName = iosRawName.replace(/\s+/g, '-') || 'attendee';
             const iosFilename = `optimeet-card-${iosSafeName}.png`;
             const file = new File([blob], iosFilename, { type: 'image/png' });
-            showIOSSaveOptions({ file, canvas, button: btn });
+            if (navigator.share && navigator.canShare?.({ files: [file] })) {
+              try {
+                await navigator.share({ files: [file], title: 'Optimeet card' });
+                resetDownloadButton(btn);
+                return;
+              } catch (err) {
+                if (err.name === 'AbortError') {
+                  resetDownloadButton(btn);
+                  return;
+                }
+              }
+            }
+
+            showIOSFallbackNotice(canvas, btn);
           }, 'image/png');
           return;
         }
