@@ -605,12 +605,12 @@ input[type="range"] {
   }
 
   .site-header {
-    padding: 30px 18px 24px;
+    padding: 22px 18px 16px;
   }
 
   .site-header h1 {
     font-size: clamp(1.45rem, 7vw, 2rem);
-    margin-bottom: 10px;
+    margin-bottom: 6px;
     letter-spacing: 0.03em;
   }
 
