@@ -351,58 +351,61 @@
 
   // FORBEDRET: Åbn billede i ny fane med korrekt HTML/CSS til iOS
   function openImageInNewTabFromCanvas(canvas) {
-    const dataUrl = canvas.toDataURL('image/png');
-    
-    // Lav korrekt HTML til iOS med optimeret CSS
-    const htmlContent = `<!DOCTYPE html>
+    // Konverter canvas til blob først (bedre for iOS)
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        alert('Kunne ikke generere billede til visning.');
+        return;
+      }
+      
+      // Lav en blob URL til billedet
+      const imageUrl = URL.createObjectURL(blob);
+      
+      // Lav korrekt HTML til iOS med optimeret CSS
+      const htmlContent = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Optimeet Card</title>
   <style>
     * {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
     }
     
     html, body {
       width: 100%;
-      height: 100%;
-      overflow: hidden;
+      min-height: 100vh;
+      overflow: auto;
     }
     
     body {
       background: #000;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
+      padding: 20px;
       
-      /* VIGTIGT: Forhindre tekstmarkering */
+      /* Forhindre tekstmarkering på body */
       user-select: none;
       -webkit-user-select: none;
-      -moz-user-select: none;
-      -ms-user-select: none;
-      
-      /* VIGTIGT: Tillad iOS long-press menu */
-      -webkit-touch-callout: default;
     }
     
     img {
       max-width: 100%;
-      max-height: 100vh;
-      width: auto;
       height: auto;
       display: block;
+      border-radius: 4px;
       
-      /* VIGTIGT: Tillad iOS context menu på billedet */
+      /* KRITISK: Disse properties tillader iOS long-press */
+      -webkit-user-select: none;
       -webkit-touch-callout: default;
+      user-select: none;
       pointer-events: auto;
-      
-      /* Forhindre drag på selve billedet */
-      -webkit-user-drag: none;
-      user-drag: none;
     }
     
     .instruction {
@@ -410,56 +413,42 @@
       bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(0, 0, 0, 0.85);
+      background: rgba(0, 0, 0, 0.9);
       color: white;
-      padding: 12px 24px;
-      border-radius: 8px;
+      padding: 14px 24px;
+      border-radius: 10px;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
-      font-size: 14px;
+      font-size: 15px;
       text-align: center;
       z-index: 1000;
-      animation: fadeOut 4s ease-in-out forwards;
+      animation: fadeOut 5s ease-in-out forwards;
       pointer-events: none;
+      max-width: 90%;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
     }
     
     @keyframes fadeOut {
-      0%, 70% { opacity: 1; }
+      0%, 60% { opacity: 1; }
       100% { opacity: 0; }
     }
   </style>
 </head>
 <body>
-  <img src="${dataUrl}" alt="Optimeet Card">
-  <div class="instruction">📥 Hold på billedet og tryk "Gem billede"</div>
+  <img src="${imageUrl}" alt="Optimeet Card">
+  <div class="instruction">👆 Hold fingeren på billedet og vælg "Gem billede"</div>
 </body>
 </html>`;
 
-    // Prøv at åbne i ny fane
-    const popup = window.open('', '_blank');
-    if (popup) {
-      popup.document.write(htmlContent);
-      popup.document.close();
-      return true;
-    }
-
-    // Fallback hvis popup blev blokeret
-    const blob = new Blob([htmlContent], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    
-    const link = document.createElement('a');
-    link.href = url;
-    link.target = '_blank';
-    link.rel = 'noopener';
-    link.style.display = 'none';
-    document.body.appendChild(link);
-    link.click();
-    
-    setTimeout(() => {
-      link.remove();
-      URL.revokeObjectURL(url);
-    }, 1000);
-    
-    return true;
+      // Åbn i ny fane
+      const newTab = window.open('', '_blank');
+      if (newTab) {
+        newTab.document.open();
+        newTab.document.write(htmlContent);
+        newTab.document.close();
+      } else {
+        alert('Tillad popups i Safari for at åbne billedet.');
+      }
+    }, 'image/png');
   }
 
   // FORBEDRET: Vis fallback-besked hvis share fejler
@@ -514,15 +503,19 @@
       }
 
       try {
-        await navigator.share({ files: [file], title: 'Optimeet card' });
+        await navigator.share({ 
+          files: [file], 
+          title: 'Optimeet card'
+        });
         box.remove();
         resetDownloadButton(button);
       } catch (err) {
         if (err.name === 'AbortError') {
-          // Bruger annullerede - fjern ikke boksen
+          // Bruger annullerede - lad boksen blive
           return;
         }
         console.error('Share error:', err);
+        alert('Deling mislykkedes. Prøv "Åbn billede" i stedet.');
       }
     });
 
@@ -541,10 +534,7 @@
     });
 
     openTab.addEventListener('click', () => {
-      const ok = openImageInNewTabFromCanvas(canvas);
-      if (!ok) {
-        alert('Tillad popups i Safari for at åbne billedet.');
-      }
+      openImageInNewTabFromCanvas(canvas);
       box.remove();
       resetDownloadButton(button);
     });
@@ -725,13 +715,12 @@
 
             const file = new File([blob], filename, { type: 'image/png' });
             
-            // Tjek om share er tilgængelig OG om vi kan share filer
-            if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+            // Forsøg share direkte - dette skulle virke første gang
+            if (navigator.share) {
               try {
                 await navigator.share({ 
-                  files: [file], 
-                  title: 'Optimeet card',
-                  text: 'Mit Optimeet kort' 
+                  files: [file],
+                  title: 'Optimeet card'
                 });
                 resetDownloadButton(btn);
                 return;
