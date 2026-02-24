@@ -348,6 +348,52 @@
     resetDownloadButton(button);
   }
 
+  function showIOSFallbackNotice(canvas, button) {
+    let dataUrl = '';
+    try {
+      dataUrl = canvas.toDataURL('image/png');
+    } catch (err) {
+      console.error('iOS fallback conversion error:', err);
+      resetDownloadButton(button);
+      alert('Kunne ikke klargore billedet til deling. Proev igen.');
+      return;
+    }
+
+    const popup = window.open('', '_blank');
+    if (popup) {
+      popup.document.write(`
+        <!doctype html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Optimeet kort</title>
+            <style>
+              body{margin:0;padding:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f1224;color:#fff}
+              p{margin:0 0 12px;font-size:15px;line-height:1.4}
+              img{width:100%;height:auto;border-radius:12px;display:block}
+            </style>
+          </head>
+          <body>
+            <p>Tryk pa Del-knappen i Safari for at dele eller gemme billedet.</p>
+            <img src="${dataUrl}" alt="Optimeet card">
+          </body>
+        </html>
+      `);
+      popup.document.close();
+    } else {
+      createDownloadFallback({
+        href: dataUrl,
+        filename: 'optimeet-card.png',
+        cleanup: null,
+        button
+      });
+      return;
+    }
+
+    resetDownloadButton(button);
+  }
+
   function fixPhotoInClone(clone) {
     if (!imgEl || !imgEl.src || !dom.photoInner) return Promise.resolve();
 
@@ -507,39 +553,29 @@
               return;
             }
 
-            const file = new File([blob], filename, { type: 'image/png' });
+            const iosRawName = dom.nameInput ? dom.nameInput.value.trim() : '';
+            const iosSafeName = iosRawName.replace(/\s+/g, '-') || 'attendee';
+            const iosFilename = `optimeet-card-${iosSafeName}.png`;
+            const file = new File([blob], iosFilename, { type: 'image/png' });
 
             if (!navigator.share || typeof navigator.share !== 'function') {
-              resetDownloadButton(btn);
-              alert('Din browser understøtter ikke deling. Prøv at opdatere iOS/Safari.');
+              showIOSFallbackNotice(canvas, btn);
               return;
             }
 
-            const canShareFiles = typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] });
-
             try {
-              if (canShareFiles) {
-                await navigator.share({
-                  files: [file],
-                  title: 'Optimeet card'
-                });
-              } else {
-                // Fallback: åbn iOS share sheet uden fil hvis fil-deling ikke understøttes.
-                await navigator.share({
-                  title: 'Optimeet card',
-                  text: 'Mit Optimeet-kort'
-                });
-              }
+              await navigator.share({
+                files: [file],
+                title: 'Optimeet card'
+              });
               resetDownloadButton(btn);
             } catch (err) {
-              resetDownloadButton(btn);
               if (err.name === 'AbortError') {
-                // Bruger annullerede - OK, gør intet
+                resetDownloadButton(btn);
                 return;
               }
-              // Anden fejl
               console.error('Share error:', err);
-              alert('Deling mislykkedes. Prøv igen.');
+              showIOSFallbackNotice(canvas, btn);
             }
           });
           return;
