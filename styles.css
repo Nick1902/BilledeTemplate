@@ -593,9 +593,15 @@ input[type="range"] {
    MOBILE TAB LAYOUT  (â‰¤ 800px)
    â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 @media (max-width: 800px) {
+  html, body {
+    overflow-x: hidden;
+    overscroll-behavior-y: none;
+  }
+
   body {
     /* Prevent iOS scroll jump caused by fixed backgrounds */
     background-attachment: scroll;
+    min-height: 100svh;
   }
 
   .site-header {
@@ -674,13 +680,17 @@ input[type="range"] {
     border-radius: 0;
     padding: 20px 16px 24px;
     gap: 20px;
-    background: rgba(8, 10, 22, 0.7);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    background: rgba(8, 10, 22, 0.92);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 
   .panel.tab-active {
     display: flex;
+    max-height: calc(100svh - 150px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
   }
 
   .preview-col {
