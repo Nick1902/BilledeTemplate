@@ -351,36 +351,21 @@
 
   function openImageInNewTabFromCanvas(canvas) {
     const dataUrl = canvas.toDataURL('image/png');
-    const html = `
-      <html><head>
-        <meta name="viewport" content="width=device-width,initial-scale=1">
-        <title>Gem billede</title>
-        <style>
-          body{margin:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;color:#fff;font-family:sans-serif;gap:12px}
-          img{max-width:100%;border-radius:8px}
-          p{font-size:14px;opacity:.8;padding:0 14px;text-align:center}
-        </style>
-      </head><body>
-        <p>Tryk og hold på billedet → "Føj til Fotos"</p>
-        <img src="${dataUrl}" alt="Optimeet card">
-      </body></html>
-    `;
+    const popup = window.open(dataUrl, '_blank');
+    if (popup) return true;
 
-    const blob = new Blob([html], { type: 'text/html' });
-    const pageUrl = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.href = pageUrl;
+    link.href = dataUrl;
     link.target = '_blank';
     link.rel = 'noopener';
     link.style.display = 'none';
     document.body.appendChild(link);
     link.click();
     link.remove();
-    setTimeout(() => URL.revokeObjectURL(pageUrl), 30000);
     return true;
   }
 
-  function showIOSFallbackNotice(canvas, button) {
+  function showIOSFallbackNotice(canvas, button, file) {
     const existing = byId('ios-download-fallback');
     if (existing) existing.remove();
 
@@ -406,21 +391,43 @@
     const text = document.createElement('div');
     text.textContent = 'Download via Deling mislykkedes.';
 
+    const shareAgain = document.createElement('button');
+    shareAgain.type = 'button';
+    shareAgain.textContent = 'Prøv deling igen';
+    shareAgain.style.cssText = 'margin-top:6px;padding:0;border:none;background:transparent;color:#9bb7ff;text-decoration:underline;font-size:13px;cursor:pointer;';
+
     const link = document.createElement('button');
     link.type = 'button';
     link.textContent = 'Tryk her for at åbne billedet i ny fane';
     link.style.cssText = 'margin-top:6px;padding:0;border:none;background:transparent;color:#9bb7ff;text-decoration:underline;font-size:13px;cursor:pointer;';
 
+    shareAgain.addEventListener('click', async () => {
+      if (!navigator.share) {
+        alert('Deling understøttes ikke på denne enhed.');
+        return;
+      }
+
+      try {
+        await navigator.share({ files: [file], title: 'Optimeet card' });
+        box.remove();
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+        alert('Deling mislykkedes igen. Brug ny fane-linket.');
+      }
+    });
+
     link.addEventListener('click', () => {
       const ok = openImageInNewTabFromCanvas(canvas);
       if (!ok) alert('Tillad popups for at åbne billedet i ny fane.');
       box.remove();
-      resetDownloadButton(button);
     });
 
     box.appendChild(text);
+    box.appendChild(shareAgain);
     box.appendChild(link);
     document.body.appendChild(box);
+
+    resetDownloadButton(button);
 
     setTimeout(() => {
       if (box.parentNode) box.remove();
@@ -577,7 +584,7 @@
             const iosSafeName = iosRawName.replace(/\s+/g, '-') || 'attendee';
             const iosFilename = `optimeet-card-${iosSafeName}.png`;
             const file = new File([blob], iosFilename, { type: 'image/png' });
-            if (navigator.share && navigator.canShare?.({ files: [file] })) {
+            if (navigator.share) {
               try {
                 await navigator.share({ files: [file], title: 'Optimeet card' });
                 resetDownloadButton(btn);
@@ -590,7 +597,7 @@
               }
             }
 
-            showIOSFallbackNotice(canvas, btn);
+            showIOSFallbackNotice(canvas, btn, file);
           }, 'image/png');
           return;
         }
