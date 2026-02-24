@@ -593,6 +593,11 @@ input[type="range"] {
    MOBILE TAB LAYOUT  (â‰¤ 800px)
    â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 @media (max-width: 800px) {
+  body {
+    /* Prevent iOS scroll jump caused by fixed backgrounds */
+    background-attachment: scroll;
+  }
+
   .site-header {
     padding: 30px 18px 24px;
   }
@@ -685,7 +690,7 @@ input[type="range"] {
     gap: 12px;
     padding: 20px 16px;
     background: transparent;
-    min-height: calc(100vh - 140px);
+    min-height: calc(100svh - 140px);
   }
 
   .preview-col.tab-active {

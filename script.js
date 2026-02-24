@@ -56,6 +56,7 @@
   let zoom = 100;
   let logoScale = 100;
   let photoDragBound = false;
+  let lastViewportWidth = window.innerWidth;
 
   window.switchTab = (tab) => {
     if (!dom.editPane || !dom.previewPane || !dom.tabEditBtn || !dom.tabPreviewBtn) return;
@@ -511,7 +512,18 @@
 
   function init() {
     scaleCard();
-    window.addEventListener('resize', scaleCard);
+    window.addEventListener('resize', () => {
+      const currentWidth = window.innerWidth;
+      if (Math.abs(currentWidth - lastViewportWidth) < 1) return;
+      lastViewportWidth = currentWidth;
+      scaleCard();
+    });
+    window.addEventListener('orientationchange', () => {
+      setTimeout(() => {
+        lastViewportWidth = window.innerWidth;
+        scaleCard();
+      }, 120);
+    });
 
     document.querySelectorAll('[data-switch-tab]').forEach((button) => {
       button.addEventListener('click', () => {
