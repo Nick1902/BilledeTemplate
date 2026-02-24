@@ -12,7 +12,8 @@
 
 body {
   background-image:
-    linear-gradient(160deg, rgba(53, 57, 110, 0.383) 0%, rgba(10, 15, 55, 0.705) 40%, rgba(4,6,20,0.88) 100%);
+    linear-gradient(160deg, rgba(53, 57, 110, 0.383) 0%, rgba(10, 15, 55, 0.705) 40%, rgba(4, 6, 20, 0.88) 100%),
+    url('./bellaarenajpg.jpg');
   background-size: cover;
   background-position: center 30%;
   background-attachment: fixed;
@@ -33,20 +34,24 @@ a {
 /* ── HEADER ── */
 .site-header {
   width: 100%;
-  padding: 52px 32px 44px;
+  padding: 56px 32px 46px;
   text-align: center;
   background: transparent;
   border-bottom: 1px solid rgba(255,255,255,0.07);
   position: relative;
   overflow: hidden;
+  isolation: isolate;
 }
 
 .site-header::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(to bottom, rgba(6,10,40,0.45) 0%, transparent 100%);
+  background:
+    radial-gradient(60% 120% at 50% 0%, rgba(79,122,255,0.28) 0%, rgba(79,122,255,0.08) 40%, transparent 75%),
+    linear-gradient(to bottom, rgba(6,10,40,0.55) 0%, transparent 100%);
   pointer-events: none;
+  z-index: -1;
 }
 
 .site-header::after {
@@ -54,34 +59,44 @@ a {
   position: absolute;
   bottom: 0; left: 50%;
   transform: translateX(-50%);
-  width: 40%;
+  width: min(560px, 62%);
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(79,122,255,0.55), transparent);
+  background: linear-gradient(90deg, transparent, rgba(128, 160, 255, 0.7), transparent);
   
 }
 
 .site-header h1 {
-  font-family: 'Raleway', sans-serif;
-  font-size: clamp(1.8rem, 5vw, 3rem);
-  font-weight: 700;
+  font-family: 'Montserrat', sans-serif;
+  font-size: clamp(2rem, 5vw, 3.35rem);
+  font-weight: 800;
   text-transform: uppercase;
-  background: linear-gradient(135deg, #fff 0%, #a8b4ff 100%);
+  line-height: 1.03;
+  background: linear-gradient(140deg, #f5f8ff 0%, #c8d3ff 45%, #8fb0ff 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   position: relative;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.04em;
   z-index: 1;
-  margin-bottom: 12px;
-  filter: drop-shadow(0 2px 24px rgba(79,122,255,0.3));
-  text-shadow: 0 10px 28px rgba(0,0,0,0.35);
+  margin: 0 auto 16px;
+  max-width: 18ch;
+  filter: drop-shadow(0 3px 26px rgba(79,122,255,0.34));
+  text-shadow: 0 10px 30px rgba(0,0,0,0.38);
 }
 
 .site-header p {
-  font-size: 0.8rem;
-  color: rgba(232, 234, 246, 0.55);
-  font-weight: 500;
-  letter-spacing: 0.1em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(143, 176, 255, 0.4);
+  background: rgba(10, 18, 52, 0.45);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.09), 0 8px 26px rgba(8,12,34,0.4);
+  font-size: 0.76rem;
+  color: rgba(232, 234, 246, 0.88);
+  font-weight: 700;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   position: relative;
   z-index: 1;
@@ -255,15 +270,6 @@ input[type="range"] {
   gap: 16px;
 }
 
-.preview-label {
-  font-size: 0.78rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--muted);
-  align-self: flex-start;
-}
-
 .card-wrapper {
   width: 100%;
   max-width: 520px;
@@ -343,9 +349,16 @@ input[type="range"] {
   font-size: 50px;
   font-weight: 700;
   color: #fff;
+  line-height: 1.04;
   letter-spacing: -0.01em;
   text-shadow: 0 4px 40px rgba(0,0,0,0.5);
+  white-space: pre-line;
   word-break: break-word;
+}
+
+#inp-header {
+  min-height: 86px;
+  line-height: 1.35;
 }
 
 .top-logo {
@@ -472,6 +485,7 @@ input[type="range"] {
   color: rgba(255,255,255,0.55);
   text-align: center;
   line-height: 1;
+  margin-top: 29px;
 }
 
 /* Stand number / name */
@@ -585,16 +599,19 @@ input[type="range"] {
   }
 
   .site-header {
-    padding: 28px 20px 24px;
+    padding: 30px 18px 24px;
   }
 
   .site-header h1 {
-    font-size: clamp(1.3rem, 5vw, 1.8rem);
-    margin-bottom: 6px;
+    font-size: clamp(1.45rem, 7vw, 2rem);
+    margin-bottom: 10px;
+    letter-spacing: 0.03em;
   }
 
   .site-header p {
-    font-size: 0.75rem;
+    padding: 7px 12px;
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
   }
 
   /* ── Tab bar ── */
@@ -686,13 +703,6 @@ input[type="range"] {
 
   #logo-size-section {
     display: none !important;
-  }
-
-  .preview-label {
-    align-self: center;
-    text-align: center;
-    font-size: 0.72rem;
-    margin-bottom: 4px;
   }
 
   .card-wrapper {
@@ -804,9 +814,12 @@ input[type="range"] {
 /* ── DESKTOP: hide mobile-only elements ── */
 .mobile-tabs,
 .mobile-download-bar,
-.mobile-preview-cta,
-.mobile-steps {
+.mobile-preview-cta {
   display: none;
+}
+
+.mobile-preview-cta-back {
+  margin-top: 8px;
 }
 
 @media (max-width: 480px) {

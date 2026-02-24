@@ -1,189 +1,138 @@
-(function() {
-
+﻿(() => {
   const CARD_WIDTH = 800;
   const CARD_HEIGHT = 1000;
   const MAX_LOGO_UPLOAD_WIDTH = 2000;
   const MAX_LOGO_UPLOAD_HEIGHT = 2000;
+  const BG_IMAGE_URL = './baggrund.jpg';
 
-  /* ══════════════════════════════════════════
-     MOBILE TAB SWITCHING
-  ══════════════════════════════════════════ */
-  window.switchTab = function(tab) {
-    const editPane    = document.getElementById('pane-edit');
-    const previewPane = document.getElementById('pane-preview');
-    const editBtn     = document.getElementById('tab-edit-btn');
-    const previewBtn  = document.getElementById('tab-preview-btn');
+  const byId = (id) => document.getElementById(id);
 
-    if (tab === 'edit') {
-      editPane.classList.add('tab-active');
-      previewPane.classList.remove('tab-active');
-      editBtn.classList.add('active');
-      previewBtn.classList.remove('active');
-    } else {
-      previewPane.classList.add('tab-active');
-      editPane.classList.remove('tab-active');
-      previewBtn.classList.add('active');
-      editBtn.classList.remove('active');
-      scaleCard();
-    }
+  const dom = {
+    editPane: byId('pane-edit'),
+    previewPane: byId('pane-preview'),
+    tabEditBtn: byId('tab-edit-btn'),
+    tabPreviewBtn: byId('tab-preview-btn'),
+    cardLive: byId('card-live'),
+    scaleContainer: byId('scale-container'),
+    cardBg: byId('card-bg'),
+
+    headerInput: byId('inp-header'),
+    liveHeader: byId('live-header'),
+    nameInput: byId('inp-name'),
+    liveName: byId('live-name'),
+
+    photoInner: byId('photo-inner'),
+    photoPlaceholder: byId('photo-placeholder'),
+    uploadArea: byId('upload-area'),
+    fileInput: byId('file-input'),
+    zoomSection: byId('zoom-section'),
+    zoomSlider: byId('zoom-slider'),
+    zoomVal: byId('zoom-val'),
+    floatingZoom: byId('floating-zoom'),
+    floatingZoomSlider: byId('floating-zoom-slider'),
+    floatingZoomVal: byId('floating-zoom-val'),
+
+    companyUploadArea: byId('company-upload-area'),
+    fileCompanyInput: byId('file-company-input'),
+    bannerCompanyImg: byId('banner-company-img'),
+    bannerLogoPlaceholder: byId('banner-logo-placeholder'),
+    logoSizeSection: byId('logo-size-section'),
+    logoSizeSlider: byId('logo-size-slider'),
+    logoSizeVal: byId('logo-size-val'),
+    floatingLogoSizeSection: byId('floating-logo-size'),
+    floatingLogoSizeSlider: byId('floating-logo-size-slider'),
+    floatingLogoSizeVal: byId('floating-logo-size-val'),
+
+    btnDesktop: byId('btn-download'),
+    btnMobile: byId('btn-download-mobile')
   };
 
-  /* ══════════════════════════════════════════
-     SCALE card-live to fit its container
-  ══════════════════════════════════════════ */
-  const cardLive  = document.getElementById('card-live');
-  const scaleCont = document.getElementById('scale-container');
+  let imgEl = null;
+  let dragActive = false;
+  let lastX = 0;
+  let lastY = 0;
+  let imgX = 0;
+  let imgY = 0;
+  let zoom = 100;
+  let logoScale = 100;
+  let photoDragBound = false;
+
+  window.switchTab = (tab) => {
+    if (!dom.editPane || !dom.previewPane || !dom.tabEditBtn || !dom.tabPreviewBtn) return;
+
+    const showEdit = tab === 'edit';
+    dom.editPane.classList.toggle('tab-active', showEdit);
+    dom.previewPane.classList.toggle('tab-active', !showEdit);
+    dom.tabEditBtn.classList.toggle('active', showEdit);
+    dom.tabPreviewBtn.classList.toggle('active', !showEdit);
+
+    if (!showEdit) scaleCard();
+  };
 
   function scaleCard() {
-    const containerW = scaleCont.offsetWidth;
-    const scale = containerW / CARD_WIDTH;
-    cardLive.style.transform = `scale(${scale})`;
-  }
-  scaleCard();
-  window.addEventListener('resize', scaleCard);
-
-  /* ══════════════════════════════════════════
-     LIVE TEXT UPDATES
-  ══════════════════════════════════════════ */
-  function bind(inputId, liveId) {
-    const inp  = document.getElementById(inputId);
-    const live = document.getElementById(liveId);
-    if (!inp || !live) return;
-    inp.addEventListener('input', () => { live.textContent = inp.value; });
+    if (!dom.scaleContainer || !dom.cardLive) return;
+    const scale = dom.scaleContainer.offsetWidth / CARD_WIDTH;
+    dom.cardLive.style.transform = `scale(${scale})`;
   }
 
-  bind('inp-header', 'live-header');
-  bind('inp-name',   'live-name');
+  function bindLiveText(input, target) {
+    if (!input || !target) return;
+    input.addEventListener('input', () => {
+      target.textContent = input.value;
+    });
+  }
 
-  /* ══════════════════════════════════════════
-     PORTRAIT PHOTO UPLOAD + DRAG
-  ══════════════════════════════════════════ */
-  let imgEl      = null;
-  let dragActive = false;
-  let lastX = 0, lastY = 0;
-  let imgX = 0, imgY = 0;
-  let zoom = 100;
+  function updateHeaderPreview() {
+    if (!dom.headerInput || !dom.liveHeader) return;
 
-  const photoInner  = document.getElementById('photo-inner');
-  const placeholder = document.getElementById('photo-placeholder');
-  const uploadArea  = document.getElementById('upload-area');
-  const fileInput   = document.getElementById('file-input');
-  const zoomSection = document.getElementById('zoom-section');
-  const zoomSlider  = document.getElementById('zoom-slider');
-  const zoomVal     = document.getElementById('zoom-val');
+    const value = dom.headerInput.value || '';
+    const trimmed = value.trim();
+    const wordCount = trimmed ? trimmed.split(/\s+/).length : 0;
+    const charCount = value.replace(/\s+/g, '').length;
 
-  const floatingZoom       = document.getElementById('floating-zoom');
-  const floatingZoomSlider = document.getElementById('floating-zoom-slider');
-  const floatingZoomVal    = document.getElementById('floating-zoom-val');
-  const floatingLogoSizeSection = document.getElementById('floating-logo-size');
-  const floatingLogoSizeSlider  = document.getElementById('floating-logo-size-slider');
-  const floatingLogoSizeVal     = document.getElementById('floating-logo-size-val');
+    let fontSize = 50;
+    if (wordCount > 8) fontSize = 46;
+    if (wordCount > 12) fontSize = 42;
+    if (wordCount > 16) fontSize = 38;
+    if (wordCount > 20) fontSize = 34;
+    if (charCount > 70) fontSize = Math.min(fontSize, 36);
+    if (charCount > 90) fontSize = Math.min(fontSize, 32);
 
-  uploadArea.addEventListener('click', () => fileInput.click());
-  fileInput.addEventListener('change', handleFile);
+    dom.liveHeader.textContent = value;
+    dom.liveHeader.style.fontSize = `${fontSize}px`;
+    dom.liveHeader.style.lineHeight = fontSize <= 36 ? '1.08' : '1.04';
+  }
 
-  uploadArea.addEventListener('dragover',  e => { e.preventDefault(); uploadArea.style.borderColor = 'var(--accent)'; });
-  uploadArea.addEventListener('dragleave', ()  => { uploadArea.style.borderColor = ''; });
-  uploadArea.addEventListener('drop', e => {
-    e.preventDefault();
-    uploadArea.style.borderColor = '';
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) loadImage(file);
-  });
+  function setUploadAreaHighlight(area, active) {
+    if (!area) return;
+    area.style.borderColor = active ? 'var(--accent)' : '';
+  }
 
-  /* ── Company logo ── */
-  const companyUploadArea     = document.getElementById('company-upload-area');
-  const fileCompanyInput      = document.getElementById('file-company-input');
-  const bannerCompanyImg      = document.getElementById('banner-company-img');
-  const bannerLogoPlaceholder = document.getElementById('banner-logo-placeholder');
+  function setupUploadArea({ area, input, onFile }) {
+    if (!area || !input) return;
 
-  if (companyUploadArea && fileCompanyInput) {
-    companyUploadArea.addEventListener('click', () => fileCompanyInput.click());
-    companyUploadArea.addEventListener('dragover',  e => { e.preventDefault(); companyUploadArea.style.borderColor = 'var(--accent)'; });
-    companyUploadArea.addEventListener('dragleave', ()  => { companyUploadArea.style.borderColor = ''; });
-    companyUploadArea.addEventListener('drop', e => {
+    area.addEventListener('click', () => input.click());
+
+    area.addEventListener('dragover', (e) => {
       e.preventDefault();
-      companyUploadArea.style.borderColor = '';
-      const file = e.dataTransfer.files[0];
-      if (file && file.type.startsWith('image/')) loadCompanyImage(file);
+      setUploadAreaHighlight(area, true);
     });
-    fileCompanyInput.addEventListener('change', function(e) {
-      const file = e.target.files[0];
-      if (file) loadCompanyImage(file);
+
+    area.addEventListener('dragleave', () => {
+      setUploadAreaHighlight(area, false);
     });
-  }
 
-  function handleFile(e) {
-    const file = e.target.files[0];
-    if (file) loadImage(file);
-  }
+    area.addEventListener('drop', (e) => {
+      e.preventDefault();
+      setUploadAreaHighlight(area, false);
+      const file = e.dataTransfer?.files?.[0];
+      if (file && file.type.startsWith('image/')) onFile(file);
+    });
 
-  function loadImage(file) {
-    const reader = new FileReader();
-    reader.onload = ev => {
-      placeholder.style.display = 'none';
-      if (imgEl) imgEl.remove();
-      imgEl = document.createElement('img');
-      imgEl.src = ev.target.result;
-      imgEl.style.cssText = 'position:absolute;width:100%;height:100%;object-fit:cover;object-position:center;cursor:grab;user-select:none;-webkit-user-drag:none;';
-      imgX = 0; imgY = 0; zoom = 100;
-      zoomSlider.value = 100;
-      zoomVal.textContent = '100%';
-      floatingZoomSlider.value = 100;
-      floatingZoomVal.textContent = '100%';
-      applyTransform();
-      photoInner.appendChild(imgEl);
-      zoomSection.style.display = 'block';
-      floatingZoom.classList.add('active');
-      uploadArea.querySelector('p').innerHTML = '<strong>Klik for at skifte foto</strong>';
-      enableDrag();
-    };
-    reader.readAsDataURL(file);
-  }
-
-  function loadCompanyImage(file) {
-    const probeUrl = URL.createObjectURL(file);
-    const probeImg = new Image();
-
-    probeImg.onload = () => {
-      const tooLarge = probeImg.naturalWidth > MAX_LOGO_UPLOAD_WIDTH || probeImg.naturalHeight > MAX_LOGO_UPLOAD_HEIGHT;
-      URL.revokeObjectURL(probeUrl);
-
-      if (tooLarge) {
-        alert(`Logoet er for stort (${probeImg.naturalWidth}x${probeImg.naturalHeight}px). Maks er ${MAX_LOGO_UPLOAD_WIDTH}x${MAX_LOGO_UPLOAD_HEIGHT}px.`);
-        if (fileCompanyInput) fileCompanyInput.value = '';
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = ev => {
-        if (bannerCompanyImg) {
-          bannerCompanyImg.src = ev.target.result;
-          bannerCompanyImg.style.display = 'block';
-        }
-        // Hide placeholder once real logo is loaded
-        if (bannerLogoPlaceholder) bannerLogoPlaceholder.style.display = 'none';
-        // Show size sliders and reset to 100%
-        logoScale = 100;
-        if (logoSizeSlider) logoSizeSlider.value = '100';
-        if (logoSizeVal) logoSizeVal.textContent = '100%';
-        if (floatingLogoSizeSlider) floatingLogoSizeSlider.value = '100';
-        if (floatingLogoSizeVal) floatingLogoSizeVal.textContent = '100%';
-        applyLogoSize();
-        if (logoSizeSection) logoSizeSection.style.display = 'block';
-        if (floatingLogoSizeSection) floatingLogoSizeSection.classList.add('active');
-        companyUploadArea.querySelector('p').innerHTML = '<strong>Klik for at ændre logo</strong>';
-      };
-      reader.readAsDataURL(file);
-    };
-
-    probeImg.onerror = () => {
-      URL.revokeObjectURL(probeUrl);
-      alert('Kunne ikke læse logo-filen.');
-      if (fileCompanyInput) fileCompanyInput.value = '';
-    };
-
-    probeImg.src = probeUrl;
+    input.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (file) onFile(file);
+    });
   }
 
   function applyTransform() {
@@ -193,15 +142,11 @@
     imgEl.style.objectFit = 'contain';
   }
 
-  function enableDrag() {
-    photoInner.addEventListener('mousedown',  startDrag);
-    photoInner.addEventListener('touchstart', startDragTouch, { passive: false });
-  }
-
   function startDrag(e) {
     e.preventDefault();
     dragActive = true;
-    lastX = e.clientX; lastY = e.clientY;
+    lastX = e.clientX;
+    lastY = e.clientY;
     document.addEventListener('mousemove', onDrag);
     document.addEventListener('mouseup', stopDrag);
     if (imgEl) imgEl.style.cursor = 'grabbing';
@@ -218,18 +163,19 @@
   }
 
   function onDrag(e) {
-    if (!dragActive) return;
-    const scale = scaleCont.offsetWidth / CARD_WIDTH;
+    if (!dragActive || !dom.scaleContainer) return;
+    const scale = dom.scaleContainer.offsetWidth / CARD_WIDTH;
     imgX += (e.clientX - lastX) / scale;
     imgY += (e.clientY - lastY) / scale;
-    lastX = e.clientX; lastY = e.clientY;
+    lastX = e.clientX;
+    lastY = e.clientY;
     applyTransform();
   }
 
   function onDragTouch(e) {
-    if (!dragActive || e.touches.length !== 1) return;
+    if (!dragActive || e.touches.length !== 1 || !dom.scaleContainer) return;
     e.preventDefault();
-    const scale = scaleCont.offsetWidth / CARD_WIDTH;
+    const scale = dom.scaleContainer.offsetWidth / CARD_WIDTH;
     imgX += (e.touches[0].clientX - lastX) / scale;
     imgY += (e.touches[0].clientY - lastY) / scale;
     lastX = e.touches[0].clientX;
@@ -246,47 +192,216 @@
     if (imgEl) imgEl.style.cursor = 'grab';
   }
 
-  // Sync both zoom sliders
+  function bindPhotoDragHandlers() {
+    if (!dom.photoInner || photoDragBound) return;
+    dom.photoInner.addEventListener('mousedown', startDrag);
+    dom.photoInner.addEventListener('touchstart', startDragTouch, { passive: false });
+    photoDragBound = true;
+  }
+
   function updateZoom(value) {
-    zoom = parseInt(value);
-    const zoomText = zoom + '%';
-    zoomVal.textContent = zoomText;
-    floatingZoomVal.textContent = zoomText;
-    zoomSlider.value = zoom;
-    floatingZoomSlider.value = zoom;
+    zoom = parseInt(value, 10) || 100;
+    const zoomText = `${zoom}%`;
+
+    if (dom.zoomVal) dom.zoomVal.textContent = zoomText;
+    if (dom.floatingZoomVal) dom.floatingZoomVal.textContent = zoomText;
+    if (dom.zoomSlider) dom.zoomSlider.value = String(zoom);
+    if (dom.floatingZoomSlider) dom.floatingZoomSlider.value = String(zoom);
+
     applyTransform();
   }
 
-  zoomSlider.addEventListener('input', function() { updateZoom(this.value); });
-  floatingZoomSlider.addEventListener('input', function() { updateZoom(this.value); });
+  function loadImage(file) {
+    if (!dom.photoInner || !dom.photoPlaceholder) return;
 
-  /* ══════════════════════════════════════════
-     BACKGROUND IMAGE
-  ══════════════════════════════════════════ */
-  const BG_IMAGE_URL = './baggrund.jpg';
-  const cardBg = document.getElementById('card-bg');
-  if (BG_IMAGE_URL && BG_IMAGE_URL !== 'YOUR_BACKGROUND_IMAGE_URL_HERE') {
-    cardBg.style.backgroundImage = `
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      dom.photoPlaceholder.style.display = 'none';
+
+      if (imgEl) imgEl.remove();
+      imgEl = document.createElement('img');
+      imgEl.src = ev.target?.result;
+      imgEl.style.cssText = 'position:absolute;width:100%;height:100%;object-fit:cover;object-position:center;cursor:grab;user-select:none;-webkit-user-drag:none;';
+
+      imgX = 0;
+      imgY = 0;
+      zoom = 100;
+      updateZoom(100);
+      applyTransform();
+
+      dom.photoInner.appendChild(imgEl);
+
+      if (dom.zoomSection) dom.zoomSection.style.display = 'block';
+      if (dom.floatingZoom) dom.floatingZoom.classList.add('active');
+      if (dom.uploadArea) {
+        const text = dom.uploadArea.querySelector('p');
+        if (text) text.innerHTML = '<strong>Klik for at skifte foto</strong>';
+      }
+
+      bindPhotoDragHandlers();
+    };
+
+    reader.readAsDataURL(file);
+  }
+
+  function applyLogoSize() {
+    if (!dom.bannerCompanyImg) return;
+
+    const maxWidth = Math.round(160 * (logoScale / 100));
+    const maxHeight = Math.round(100 * (logoScale / 100));
+
+    dom.bannerCompanyImg.style.maxWidth = `${maxWidth}px`;
+    dom.bannerCompanyImg.style.maxHeight = `${maxHeight}px`;
+
+    if (dom.logoSizeSlider) dom.logoSizeSlider.value = String(logoScale);
+    if (dom.logoSizeVal) dom.logoSizeVal.textContent = `${logoScale}%`;
+    if (dom.floatingLogoSizeSlider) dom.floatingLogoSizeSlider.value = String(logoScale);
+    if (dom.floatingLogoSizeVal) dom.floatingLogoSizeVal.textContent = `${logoScale}%`;
+  }
+
+  function loadCompanyImage(file) {
+    const probeUrl = URL.createObjectURL(file);
+    const probeImg = new Image();
+
+    probeImg.onload = () => {
+      const tooLarge = probeImg.naturalWidth > MAX_LOGO_UPLOAD_WIDTH || probeImg.naturalHeight > MAX_LOGO_UPLOAD_HEIGHT;
+      URL.revokeObjectURL(probeUrl);
+
+      if (tooLarge) {
+        alert(`Logoet er for stort (${probeImg.naturalWidth}x${probeImg.naturalHeight}px). Maks er ${MAX_LOGO_UPLOAD_WIDTH}x${MAX_LOGO_UPLOAD_HEIGHT}px.`);
+        if (dom.fileCompanyInput) dom.fileCompanyInput.value = '';
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        if (dom.bannerCompanyImg) {
+          dom.bannerCompanyImg.src = ev.target?.result;
+          dom.bannerCompanyImg.style.display = 'block';
+        }
+
+        if (dom.bannerLogoPlaceholder) dom.bannerLogoPlaceholder.style.display = 'none';
+
+        logoScale = 100;
+        applyLogoSize();
+
+        if (dom.logoSizeSection) dom.logoSizeSection.style.display = 'block';
+        if (dom.floatingLogoSizeSection) dom.floatingLogoSizeSection.classList.add('active');
+
+        if (dom.companyUploadArea) {
+          const text = dom.companyUploadArea.querySelector('p');
+          if (text) text.innerHTML = '<strong>Klik for at ændre logo</strong>';
+        }
+      };
+
+      reader.readAsDataURL(file);
+    };
+
+    probeImg.onerror = () => {
+      URL.revokeObjectURL(probeUrl);
+      alert('Kunne ikke læse logo-filen.');
+      if (dom.fileCompanyInput) dom.fileCompanyInput.value = '';
+    };
+
+    probeImg.src = probeUrl;
+  }
+
+  function setBackgroundImage() {
+    if (!dom.cardBg || !BG_IMAGE_URL) return;
+    dom.cardBg.style.backgroundImage = `
       linear-gradient(160deg, rgba(10,14,50,0.72) 0%, rgba(20,10,60,0.55) 50%, rgba(5,5,20,0.85) 100%),
       url('${BG_IMAGE_URL}')
     `;
-    cardBg.style.backgroundSize = 'cover';
-    cardBg.style.backgroundPosition = 'center';
+    dom.cardBg.style.backgroundSize = 'cover';
+    dom.cardBg.style.backgroundPosition = 'center';
   }
 
-  /* ══════════════════════════════════════════
-     DOWNLOAD  (shared logic, two buttons)
-  ══════════════════════════════════════════ */
+  function resetDownloadButton(btn) {
+    if (!btn) return;
+    const originalHtml = btn.dataset.defaultHtml;
+    if (originalHtml) {
+      btn.innerHTML = originalHtml;
+    } else {
+      btn.textContent = '⬇ Hent billede';
+    }
+    btn.classList.remove('loading');
+  }
+
+  function createDownloadFallback({ href, filename, cleanup, button }) {
+    const link = document.createElement('a');
+    link.style.display = 'none';
+    link.href = href;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+
+    setTimeout(() => {
+      try {
+        link.remove();
+      } catch (_) {
+        // no-op
+      }
+      if (cleanup) cleanup();
+    }, 1000);
+
+    resetDownloadButton(button);
+  }
+
+  function fixPhotoInClone(clone) {
+    if (!imgEl || !imgEl.src || !dom.photoInner) return Promise.resolve();
+
+    const clonedPhotoInner = clone.querySelector('#photo-inner');
+    if (!clonedPhotoInner) return Promise.resolve();
+
+    const photoW = clonedPhotoInner.offsetWidth || dom.photoInner.offsetWidth;
+    const photoH = clonedPhotoInner.offsetHeight || dom.photoInner.offsetHeight;
+
+    return new Promise((resolve) => {
+      const nativeImg = new Image();
+      nativeImg.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = photoW;
+        canvas.height = photoH;
+
+        const ctx = canvas.getContext('2d');
+        const containScale = Math.min(photoW / nativeImg.naturalWidth, photoH / nativeImg.naturalHeight) * (zoom / 100);
+        const scaledW = nativeImg.naturalWidth * containScale;
+        const scaledH = nativeImg.naturalHeight * containScale;
+        const drawX = (photoW - scaledW) / 2 + imgX;
+        const drawY = (photoH - scaledH) / 2 + imgY;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, photoW, photoH);
+        ctx.clip();
+        ctx.drawImage(nativeImg, drawX, drawY, scaledW, scaledH);
+        ctx.restore();
+
+        canvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;';
+
+        const clonedImg = clonedPhotoInner.querySelector('img');
+        if (clonedImg) clonedImg.remove();
+
+        clonedPhotoInner.appendChild(canvas);
+        resolve();
+      };
+
+      nativeImg.src = imgEl.src;
+    });
+  }
+
   function doDownload(btn) {
-    btn.textContent = '⏳  Genererer…';
+    if (!btn || !dom.scaleContainer) return;
+
+    btn.textContent = '⏳ Genererer...';
     btn.classList.add('loading');
 
     const wrapper = document.createElement('div');
     wrapper.style.cssText = `position:fixed;left:-20000px;top:0;width:${CARD_WIDTH}px;height:${CARD_HEIGHT}px;overflow:hidden;`;
 
-    const clone = scaleCont.cloneNode(true);
-    clone.style.width  = CARD_WIDTH  + 'px';
-    clone.style.height = CARD_HEIGHT + 'px';
+    const clone = dom.scaleContainer.cloneNode(true);
+    clone.style.width = `${CARD_WIDTH}px`;
+    clone.style.height = `${CARD_HEIGHT}px`;
     clone.style.boxSizing = 'border-box';
 
     const clonedCardLive = clone.querySelector('#card-live');
@@ -297,46 +412,7 @@
     wrapper.appendChild(clone);
     document.body.appendChild(wrapper);
 
-    function fixPhotoInClone() {
-      if (!imgEl || !imgEl.src) return Promise.resolve();
-      const clonedPhotoInner = clone.querySelector('#photo-inner');
-      if (!clonedPhotoInner) return Promise.resolve();
-
-      const photoW = clonedPhotoInner.offsetWidth  || photoInner.offsetWidth;
-      const photoH = clonedPhotoInner.offsetHeight || photoInner.offsetHeight;
-
-      return new Promise(resolve => {
-        const nativeImg = new Image();
-        nativeImg.onload = () => {
-          const cvs = document.createElement('canvas');
-          cvs.width  = photoW;
-          cvs.height = photoH;
-          const ctx = cvs.getContext('2d');
-
-          const containScale = Math.min(photoW / nativeImg.naturalWidth, photoH / nativeImg.naturalHeight) * (zoom / 100);
-          const scaledW = nativeImg.naturalWidth  * containScale;
-          const scaledH = nativeImg.naturalHeight * containScale;
-          const drawX = (photoW - scaledW) / 2 + imgX;
-          const drawY = (photoH - scaledH) / 2 + imgY;
-
-          ctx.save();
-          ctx.beginPath();
-          ctx.rect(0, 0, photoW, photoH);
-          ctx.clip();
-          ctx.drawImage(nativeImg, drawX, drawY, scaledW, scaledH);
-          ctx.restore();
-
-          cvs.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;';
-          const clonedImg = clonedPhotoInner.querySelector('img');
-          if (clonedImg) clonedImg.remove();
-          clonedPhotoInner.appendChild(cvs);
-          resolve();
-        };
-        nativeImg.src = imgEl.src;
-      });
-    }
-
-    fixPhotoInClone().then(() => {
+    fixPhotoInClone(clone).then(() => {
       const captureScale = Math.max(2, Math.round(window.devicePixelRatio || 2));
       const target = clonedCardLive || clone;
 
@@ -348,66 +424,56 @@
         allowTaint: true,
         backgroundColor: null,
         logging: false
-      }).then(canvas => {
+      }).then((canvas) => {
         document.body.removeChild(wrapper);
 
         const outputMime = 'image/png';
-        const outputExt  = 'png';
-        const name = document.getElementById('inp-name').value.trim().replace(/\s+/g, '-') || 'attendee';
-        const filename = `optimeet-card-${name}.${outputExt}`;
-
+        const outputExt = 'png';
+        const rawName = dom.nameInput ? dom.nameInput.value.trim() : '';
+        const safeName = rawName.replace(/\s+/g, '-') || 'attendee';
+        const filename = `optimeet-card-${safeName}.${outputExt}`;
         const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
-
-        function fallbackDownload(href, cleanup) {
-          const a = document.createElement('a');
-          a.style.display = 'none';
-          a.href = href;
-          a.download = filename;
-          document.body.appendChild(a);
-          a.click();
-          setTimeout(() => {
-            try { a.remove(); } catch (e) {}
-            if (cleanup) cleanup();
-          }, 1000);
-          resetBtn(btn);
-        }
-
-        function resetBtn(b) {
-          b.textContent = '⬇ \u00a0Hent kort';
-          b.classList.remove('loading');
-        }
 
         try {
           if (canvas.toBlob) {
-            canvas.toBlob(async blob => {
+            canvas.toBlob(async (blob) => {
               if (!blob) throw new Error('toBlob returned null');
 
               if (isIOS && navigator.share) {
                 try {
                   const file = new File([blob], filename, { type: outputMime, lastModified: Date.now() });
                   await navigator.share({ files: [file], title: filename });
-                  resetBtn(btn);
+                  resetDownloadButton(btn);
                   return;
                 } catch (shareErr) {
-                  if (shareErr.name === 'AbortError') { resetBtn(btn); return; }
+                  if (shareErr.name === 'AbortError') {
+                    resetDownloadButton(btn);
+                    return;
+                  }
+
                   const iOSUrl = URL.createObjectURL(blob);
                   window.open(iOSUrl, '_blank', 'noopener');
                   setTimeout(() => URL.revokeObjectURL(iOSUrl), 30000);
-                  resetBtn(btn);
+                  resetDownloadButton(btn);
                   return;
                 }
               }
 
-              if (isIOS && !navigator.share) {
+              if (isIOS) {
                 const iOSUrl = URL.createObjectURL(blob);
                 window.open(iOSUrl, '_blank', 'noopener');
                 setTimeout(() => URL.revokeObjectURL(iOSUrl), 30000);
-                resetBtn(btn);
+                resetDownloadButton(btn);
                 return;
               }
 
               const url = URL.createObjectURL(blob);
-              fallbackDownload(url, () => URL.revokeObjectURL(url));
+              createDownloadFallback({
+                href: url,
+                filename,
+                cleanup: () => URL.revokeObjectURL(url),
+                button: btn
+              });
             }, outputMime);
           } else {
             if (isIOS) {
@@ -417,61 +483,77 @@
                 popup.document.write(`<img src="${dataUrl}" style="max-width:100%;height:auto;display:block;margin:0 auto;" alt="Optimeet card">`);
                 popup.document.close();
               }
-              resetBtn(btn);
+              resetDownloadButton(btn);
               return;
             }
-            fallbackDownload(canvas.toDataURL(outputMime), null);
+
+            createDownloadFallback({
+              href: canvas.toDataURL(outputMime),
+              filename,
+              cleanup: null,
+              button: btn
+            });
           }
         } catch (err) {
           console.error('Download error:', err);
-          resetBtn(btn);
+          resetDownloadButton(btn);
           alert('Download mislykkedes pga. en sikkerhedsbegrænsning.');
         }
-      }).catch(err => {
+      }).catch((err) => {
         if (wrapper.parentNode) document.body.removeChild(wrapper);
         console.error('html2canvas error:', err);
-        resetBtn(btn);
+        resetDownloadButton(btn);
         alert('Download mislykkedes. Åbn DevTools og tjek konsollen for detaljer.');
       });
     });
   }
 
-  /* ── Logo size slider ── */
-  const logoSizeSection = document.getElementById('logo-size-section');
-  const logoSizeSlider  = document.getElementById('logo-size-slider');
-  const logoSizeVal     = document.getElementById('logo-size-val');
-  let logoScale = 100;
+  function init() {
+    scaleCard();
+    window.addEventListener('resize', scaleCard);
 
-  function applyLogoSize() {
-    if (!bannerCompanyImg) return;
-    const px = Math.round(160 * (logoScale / 100));
-    bannerCompanyImg.style.maxWidth  = px + 'px';
-    bannerCompanyImg.style.maxHeight = Math.round(100 * (logoScale / 100)) + 'px';
-    if (logoSizeSlider) logoSizeSlider.value = String(logoScale);
-    if (logoSizeVal) logoSizeVal.textContent = logoScale + '%';
-    if (floatingLogoSizeSlider) floatingLogoSizeSlider.value = String(logoScale);
-    if (floatingLogoSizeVal) floatingLogoSizeVal.textContent = logoScale + '%';
-  }
+    document.querySelectorAll('[data-switch-tab]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const tab = button.getAttribute('data-switch-tab');
+        if (tab) window.switchTab(tab);
+      });
+    });
 
-  if (logoSizeSlider && logoSizeVal) {
-    logoSizeSlider.addEventListener('input', function() {
-      logoScale = parseInt(this.value, 10) || 100;
-      applyLogoSize();
+    bindLiveText(dom.nameInput, dom.liveName);
+
+    if (dom.headerInput && dom.liveHeader) {
+      dom.headerInput.addEventListener('input', updateHeaderPreview);
+      updateHeaderPreview();
+    }
+
+    setupUploadArea({ area: dom.uploadArea, input: dom.fileInput, onFile: loadImage });
+    setupUploadArea({ area: dom.companyUploadArea, input: dom.fileCompanyInput, onFile: loadCompanyImage });
+
+    if (dom.zoomSlider) dom.zoomSlider.addEventListener('input', function onInput() { updateZoom(this.value); });
+    if (dom.floatingZoomSlider) dom.floatingZoomSlider.addEventListener('input', function onInput() { updateZoom(this.value); });
+
+    if (dom.logoSizeSlider) {
+      dom.logoSizeSlider.addEventListener('input', function onInput() {
+        logoScale = parseInt(this.value, 10) || 100;
+        applyLogoSize();
+      });
+    }
+
+    if (dom.floatingLogoSizeSlider) {
+      dom.floatingLogoSizeSlider.addEventListener('input', function onInput() {
+        logoScale = parseInt(this.value, 10) || 100;
+        applyLogoSize();
+      });
+    }
+
+    setBackgroundImage();
+
+    [dom.btnDesktop, dom.btnMobile].forEach((btn) => {
+      if (!btn) return;
+      btn.dataset.defaultHtml = btn.innerHTML;
+      btn.addEventListener('click', () => doDownload(btn));
     });
   }
 
-  if (floatingLogoSizeSlider && floatingLogoSizeVal) {
-    floatingLogoSizeSlider.addEventListener('input', function() {
-      logoScale = parseInt(this.value, 10) || 100;
-      applyLogoSize();
-    });
-  }
-
-  // Wire up both buttons
-  const btnDesktop = document.getElementById('btn-download');
-  const btnMobile  = document.getElementById('btn-download-mobile');
-  if (btnDesktop) btnDesktop.addEventListener('click', () => doDownload(btnDesktop));
-  if (btnMobile)  btnMobile.addEventListener('click',  () => doDownload(btnMobile));
-
+  init();
 })();
-

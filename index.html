@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>OPTIMEET – Opret dit udstillertemplate</title>
+<title>OPTIMEET - Opret dit udstillertemplate</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Raleway:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
@@ -11,22 +11,23 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <link rel="stylesheet" href="styles.css">
 </head>
-<body style="background-image: linear-gradient(160deg, rgba(53, 57, 110, 0.383) 0%, rgba(10, 15, 55, 0.705) 40%, rgba(4,6,20,0.88) 100%), url('./bellaarenajpg.jpg'); background-size: cover; background-position: center 30%; background-attachment: fixed;">
+<body>
 
 <header class="site-header">
   <h1>OPTIMEET Messen 2026</h1>
   <p>Opret dit udstiller template</p>
 </header>
-<!-- ── MOBILE TAB BAR (hidden on desktop) ── -->
+
+<!-- MOBILE TAB BAR (hidden on desktop) -->
 <nav class="mobile-tabs" id="mobile-tabs">
-  <button class="mobile-tab-btn active" id="tab-edit-btn" onclick="switchTab('edit')">
+  <button class="mobile-tab-btn active" id="tab-edit-btn" type="button" data-switch-tab="edit">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
       <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
     </svg>
     Udfyld
   </button>
-  <button class="mobile-tab-btn" id="tab-preview-btn" onclick="switchTab('preview')">
+  <button class="mobile-tab-btn" id="tab-preview-btn" type="button" data-switch-tab="preview">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
       <circle cx="12" cy="12" r="3"/>
@@ -51,7 +52,7 @@
         </svg>
         <p><strong>Klik for at uploade foto</strong><br/>JPG, PNG, WEBP</p>
       </div>
-      <input type="file" id="file-input" accept="image/*" style="display:none"/>
+      <input type="file" id="file-input" accept="image/*" hidden/>
     </div>
 
     <!-- Zoom (hidden until photo uploaded, desktop only) -->
@@ -67,7 +68,7 @@
     <!-- Header -->
     <div>
       <label>Overskrift</label>
-      <input type="text" id="inp-header" value="Kom og mød os på OPTIMEET messen" placeholder="Kom og mød os på OPTIMEET messen"/>
+      <textarea id="inp-header" rows="3" placeholder="Kom og mød os på OPTIMEET messen">Kom og mød os på OPTIMEET messen</textarea>
     </div>
 
     <!-- Stand -->
@@ -87,7 +88,7 @@
         </svg>
         <p><strong>Klik for at uploade logo</strong><br/>JPG, PNG, WEBP</p>
       </div>
-      <input type="file" id="file-company-input" accept="image/*" style="display:none"/>
+      <input type="file" id="file-company-input" accept="image/*" hidden/>
     </div>
 
     <!-- Logo size (hidden until logo uploaded) -->
@@ -100,8 +101,8 @@
       </div>
     </div>
 
-    <!-- "Go to preview" CTA — mobile only, shown inside edit tab -->
-    <button class="mobile-preview-cta" onclick="switchTab('preview')">
+    <!-- "Go to preview" CTA - mobile only, shown inside edit tab -->
+    <button class="mobile-preview-cta" type="button" data-switch-tab="preview">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
         <circle cx="12" cy="12" r="3"/>
@@ -110,10 +111,10 @@
     </button>
 
     <!-- Desktop download button (hidden on mobile) -->
-    <button class="btn-download" id="btn-download">
+    <button class="btn-download" id="btn-download" type="button">
       ⬇ &nbsp;Hent billede
     </button>
-  </div><!-- /#pane-edit -->
+  </div>
 
   <!-- RIGHT: PREVIEW TAB -->
   <div class="preview-col" id="pane-preview">
@@ -130,8 +131,8 @@
       <span class="zoom-label">Logo størrelse</span>
       <input type="range" id="floating-logo-size-slider" min="50" max="300" value="100"/>
       <span class="zoom-value" id="floating-logo-size-val">100%</span>
-
     </div>
+
     <div class="card-wrapper">
       <div class="card-scale-container" id="scale-container">
         <div id="card-live">
@@ -160,21 +161,18 @@
               <!-- Right column: logo + stand label -->
               <div class="card-info">
                 <div class="profile-logo-area">
-                  <!-- Logo image (shown when uploaded) -->
                   <img id="banner-company-img" class="profile-logo-image" src="" alt="Firma logo" style="display:none" onerror="this.style.display='none'" />
-                  <!-- Logo placeholder (shown before upload) -->
                   <div class="profile-logo-placeholder" id="banner-logo-placeholder">
                     <div class="profile-logo-text">Logo</div>
                   </div>
                 </div>
-                <!-- Stand label -->
                 <div class="card-stand-label">Stand</div>
                 <div class="card-name" id="live-name"></div>
               </div>
             </div>
           </div>
 
-          <!-- ── BOTTOM BANNER ── -->
+          <!-- BOTTOM BANNER -->
           <div class="card-banner">
             <div class="banner-info">
               <div class="banner-event-name">Optimeet Messen</div>
@@ -186,26 +184,26 @@
             </div>
           </div>
 
-        </div><!-- /#card-live -->
+        </div>
       </div>
     </div>
 
     <!-- "Back to edit" link on preview tab (mobile) -->
-    <button class="mobile-preview-cta" onclick="switchTab('edit')" style="margin-top:8px;">
+    <button class="mobile-preview-cta mobile-preview-cta-back" type="button" data-switch-tab="edit">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
         <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
       </svg>
       Rediger oplysninger
     </button>
-  </div><!-- /.preview-col -->
+  </div>
 
-</div><!-- /.workspace -->
+</div>
 
-<!-- ── MOBILE FIXED DOWNLOAD BAR ── -->
+<!-- MOBILE FIXED DOWNLOAD BAR -->
 <div class="mobile-download-bar" id="mobile-download-bar">
-  <button class="btn-download" id="btn-download-mobile">
-    ⬇ &nbsp;Download billede
+  <button class="btn-download" id="btn-download-mobile" type="button">
+    ⬇ &nbsp;Hent billede
   </button>
 </div>
 
