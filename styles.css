@@ -813,6 +813,7 @@ input[type="range"] {
   .mobile-save-hint {
     display: block;
     width: 100%;
+    max-width: 400px;
     margin-top: 10px;
     padding: 10px 12px;
     border-radius: 10px;
@@ -823,6 +824,7 @@ input[type="range"] {
     line-height: 1.35;
     text-align: center;
   }
+
 }
 
 /* ── DESKTOP: hide mobile-only elements ── */
@@ -838,6 +840,12 @@ input[type="range"] {
 
 .mobile-save-hint {
   display: none;
+}
+
+@media (max-width: 800px) {
+  .mobile-save-hint {
+    display: block;
+  }
 }
 
 @media (max-width: 480px) {
