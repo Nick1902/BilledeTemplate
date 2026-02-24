@@ -349,6 +349,127 @@
     resetDownloadButton(button);
   }
 
+  function openImageInNewTabFromCanvas(canvas) {
+    const dataUrl = canvas.toDataURL('image/png');
+    const w = window.open('', '_blank');
+    if (!w) return false;
+    w.document.write(`
+      <html><head>
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>Gem billede</title>
+        <style>
+          body{margin:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;color:#fff;font-family:sans-serif;gap:12px}
+          img{max-width:100%;border-radius:8px}
+          p{font-size:14px;opacity:.8;padding:0 14px;text-align:center}
+        </style>
+      </head><body>
+        <p>Tryk og hold på billedet → "Føj til Fotos"</p>
+        <img src="${dataUrl}" alt="Optimeet card">
+      </body></html>
+    `);
+    w.document.close();
+    return true;
+  }
+
+  function showIOSSaveOptions({ file, canvas, button }) {
+    const existing = byId('ios-save-sheet');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'ios-save-sheet';
+    overlay.style.cssText = [
+      'position:fixed',
+      'inset:0',
+      'z-index:9999',
+      'background:rgba(0,0,0,0.55)',
+      'display:flex',
+      'align-items:flex-end',
+      'justify-content:center',
+      'padding:16px',
+      'font-family:Arial,sans-serif'
+    ].join(';');
+
+    const sheet = document.createElement('div');
+    sheet.style.cssText = [
+      'width:100%',
+      'max-width:460px',
+      'background:#0b1022',
+      'border:1px solid rgba(255,255,255,0.12)',
+      'border-radius:14px',
+      'padding:14px',
+      'color:#e8eaf6',
+      'display:flex',
+      'flex-direction:column',
+      'gap:10px'
+    ].join(';');
+
+    const text = document.createElement('div');
+    text.textContent = 'Vælg hvordan du vil gemme billedet';
+    text.style.cssText = 'font-size:14px;opacity:0.95;padding:2px 2px 6px;';
+
+    const btnShare = document.createElement('button');
+    btnShare.type = 'button';
+    btnShare.textContent = 'Gem via Del-menu';
+    btnShare.style.cssText = 'padding:12px;border-radius:10px;border:none;background:#4f7aff;color:#fff;font-weight:700;font-size:14px;cursor:pointer;';
+
+    const btnTab = document.createElement('button');
+    btnTab.type = 'button';
+    btnTab.textContent = 'Åbn billede (tryk og hold)';
+    btnTab.style.cssText = 'padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.22);background:transparent;color:#e8eaf6;font-weight:700;font-size:14px;cursor:pointer;';
+
+    const btnClose = document.createElement('button');
+    btnClose.type = 'button';
+    btnClose.textContent = 'Luk';
+    btnClose.style.cssText = 'padding:10px;border-radius:10px;border:none;background:rgba(255,255,255,0.08);color:#e8eaf6;font-size:13px;cursor:pointer;';
+
+    const closeSheet = () => {
+      overlay.remove();
+      resetDownloadButton(button);
+    };
+
+    btnShare.addEventListener('click', async () => {
+      if (!navigator.share) {
+        const ok = openImageInNewTabFromCanvas(canvas);
+        if (!ok) alert('Tillad popups for at gemme billedet.');
+        closeSheet();
+        return;
+      }
+
+      try {
+        await navigator.share({ files: [file], title: 'Optimeet card' });
+        closeSheet();
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          closeSheet();
+          return;
+        }
+        const ok = openImageInNewTabFromCanvas(canvas);
+        if (!ok) alert('Tillad popups for at gemme billedet.');
+        closeSheet();
+      }
+    });
+
+    btnTab.addEventListener('click', () => {
+      const ok = openImageInNewTabFromCanvas(canvas);
+      if (!ok) alert('Tillad popups for at gemme billedet.');
+      closeSheet();
+    });
+
+    btnClose.addEventListener('click', closeSheet);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeSheet();
+    });
+
+    if (!navigator.share) btnShare.style.display = 'none';
+
+    sheet.appendChild(text);
+    sheet.appendChild(btnShare);
+    sheet.appendChild(btnTab);
+    sheet.appendChild(btnClose);
+    overlay.appendChild(sheet);
+    document.body.appendChild(overlay);
+  }
+
   function fixPhotoInClone(clone) {
     if (!imgEl || !imgEl.src || !dom.photoInner) return Promise.resolve();
 
@@ -499,39 +620,7 @@
             const iosSafeName = iosRawName.replace(/\s+/g, '-') || 'attendee';
             const iosFilename = `optimeet-card-${iosSafeName}.png`;
             const file = new File([blob], iosFilename, { type: 'image/png' });
-
-            if (navigator.canShare?.({ files: [file] })) {
-              try {
-                await navigator.share({ files: [file] });
-                resetDownloadButton(btn);
-                return;
-              } catch (err) {
-                if (err.name === 'AbortError') {
-                  resetDownloadButton(btn);
-                  return;
-                }
-              }
-            }
-
-            const dataUrl = canvas.toDataURL('image/png');
-            const w = window.open('', '_blank');
-            if (w) {
-              w.document.write(`
-                <html><head>
-                  <meta name="viewport" content="width=device-width,initial-scale=1">
-                  <title>Gem billede</title>
-                  <style>body{margin:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;color:#fff;font-family:sans-serif;gap:12px}img{max-width:100%;border-radius:8px}p{font-size:14px;opacity:.8}</style>
-                </head><body>
-                  <p>Tryk og hold på billedet → "Føj til Fotos"</p>
-                  <img src="${dataUrl}">
-                </body></html>
-              `);
-              w.document.close();
-            } else {
-              alert('Tillad popups for at gemme billedet.');
-            }
-
-            resetDownloadButton(btn);
+            showIOSSaveOptions({ file, canvas, button: btn });
           }, 'image/png');
           return;
         }
