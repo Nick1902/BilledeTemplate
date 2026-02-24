@@ -438,35 +438,6 @@
     });
   }
 
-  function openIOSPhotoSaveTab(canvas, mimeType, popupRef) {
-    const dataUrl = canvas.toDataURL(mimeType);
-    const popup = popupRef || window.open('', '_blank', 'noopener');
-    if (!popup) return false;
-
-    popup.document.write(`
-      <html>
-        <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1" />
-          <title>Gem billede</title>
-          <style>
-            body{margin:0;background:#0b1022;color:#e8eaf6;font-family:Arial,sans-serif}
-            .wrap{padding:14px;text-align:center}
-            .hint{font-size:14px;opacity:.9;margin:0 0 10px}
-            img{max-width:100%;height:auto;display:block;margin:0 auto;border-radius:8px}
-          </style>
-        </head>
-        <body>
-          <div class="wrap">
-            <p class="hint">Tryk og hold på billedet og vælg "Føj til Fotos"</p>
-            <img src="${dataUrl}" alt="Optimeet card" />
-          </div>
-        </body>
-      </html>
-    `);
-    popup.document.close();
-    return true;
-  }
-
   function doDownload(btn) {
     if (!btn || !dom.scaleContainer) return;
 
@@ -474,32 +445,6 @@
     btn.classList.add('loading');
 
     const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
-    const supportsCanShare = typeof navigator.canShare === 'function';
-    let iosPopup = null;
-    let iosPopupBlocked = false;
-
-    // For older iOS Safari (without canShare), pre-open immediately from user gesture.
-    if (isIOS && !supportsCanShare) {
-      iosPopup = window.open('', '_blank');
-      if (iosPopup) {
-        iosPopup.document.write(`
-          <html>
-            <head>
-              <meta name="viewport" content="width=device-width, initial-scale=1" />
-              <title>Genererer billede...</title>
-              <style>
-                body{margin:0;background:#0b1022;color:#e8eaf6;font-family:Arial,sans-serif}
-                .wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:18px;text-align:center}
-              </style>
-            </head>
-            <body><div class="wrap">Genererer billede...</div></body>
-          </html>
-        `);
-        iosPopup.document.close();
-      } else {
-        iosPopupBlocked = true;
-      }
-    }
 
     const wrapper = document.createElement('div');
     wrapper.style.cssText = `position:fixed;left:-20000px;top:0;width:${CARD_WIDTH}px;height:${CARD_HEIGHT}px;overflow:hidden;`;
@@ -542,52 +487,52 @@
         const safeName = rawName.replace(/\s+/g, '-') || 'attendee';
         const filename = `optimeet-card-${safeName}.${outputExt}`;
 
-        // iOS flow:
-        // 1) Try Web Share files first (native UX)
-        // 2) Fallback to image tab for long-press save
         if (isIOS) {
-          if (navigator.canShare) {
-            canvas.toBlob(async (blob) => {
-              if (!blob) {
+          canvas.toBlob(async (blob) => {
+            if (!blob) {
+              resetDownloadButton(btn);
+              alert('Kunne ikke generere billede.');
+              return;
+            }
+
+            const iosRawName = dom.nameInput ? dom.nameInput.value.trim() : '';
+            const iosSafeName = iosRawName.replace(/\s+/g, '-') || 'attendee';
+            const iosFilename = `optimeet-card-${iosSafeName}.png`;
+            const file = new File([blob], iosFilename, { type: 'image/png' });
+
+            if (navigator.canShare?.({ files: [file] })) {
+              try {
+                await navigator.share({ files: [file] });
                 resetDownloadButton(btn);
-                alert('Kunne ikke generere billede.');
                 return;
-              }
-
-              const file = new File([blob], filename, { type: outputMime });
-
-              if (navigator.canShare({ files: [file] })) {
-                try {
-                  await navigator.share({
-                    files: [file],
-                    title: 'Optimeet card'
-                  });
-                  if (iosPopup && !iosPopup.closed) {
-                    try { iosPopup.close(); } catch (_) {}
-                  }
+              } catch (err) {
+                if (err.name === 'AbortError') {
                   resetDownloadButton(btn);
                   return;
-                } catch (err) {
-                  if (err.name === 'AbortError') {
-                    if (iosPopup && !iosPopup.closed) {
-                      try { iosPopup.close(); } catch (_) {}
-                    }
-                    resetDownloadButton(btn);
-                    return;
-                  }
-                  console.warn('Web Share failed, falling back:', err);
                 }
               }
+            }
 
-              const opened = openIOSPhotoSaveTab(canvas, outputMime, null);
-              if (!opened) alert('Popup blev blokeret. Tillad popups og prøv igen.');
-              resetDownloadButton(btn);
-            }, outputMime);
-          } else {
-            const opened = openIOSPhotoSaveTab(canvas, outputMime, iosPopup);
-            if (!opened || iosPopupBlocked) alert('Popup blev blokeret. Tillad popups og prøv igen.');
+            const dataUrl = canvas.toDataURL('image/png');
+            const w = window.open('', '_blank');
+            if (w) {
+              w.document.write(`
+                <html><head>
+                  <meta name="viewport" content="width=device-width,initial-scale=1">
+                  <title>Gem billede</title>
+                  <style>body{margin:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;color:#fff;font-family:sans-serif;gap:12px}img{max-width:100%;border-radius:8px}p{font-size:14px;opacity:.8}</style>
+                </head><body>
+                  <p>Tryk og hold på billedet → "Føj til Fotos"</p>
+                  <img src="${dataUrl}">
+                </body></html>
+              `);
+              w.document.close();
+            } else {
+              alert('Tillad popups for at gemme billedet.');
+            }
+
             resetDownloadButton(btn);
-          }
+          }, 'image/png');
           return;
         }
 
@@ -623,9 +568,6 @@
           alert('Download mislykkedes pga. en sikkerhedsbegrænsning.');
         }
       } catch (err) {
-        if (iosPopup && !iosPopup.closed) {
-          try { iosPopup.close(); } catch (_) {}
-        }
         if (wrapper.parentNode) document.body.removeChild(wrapper);
         console.error('html2canvas error:', err);
         resetDownloadButton(btn);
