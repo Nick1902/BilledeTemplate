@@ -350,13 +350,27 @@
   }
 
   function openImageInNewTabFromCanvas(canvas) {
-    const dataUrl = canvas.toDataURL('image/png');
-    const w = window.open('', '_blank');
-    if (!w) return false;
-    w.document.open();
-    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>image</title></head><body style="margin:0;background:#fff;"><img src="${dataUrl}" alt="" style="display:block;width:100%;height:auto;"></body></html>`);
-    w.document.close();
-    return true;
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          resolve(false);
+          return;
+        }
+
+        const blobUrl = URL.createObjectURL(blob);
+        const w = window.open('', '_blank');
+        if (!w) {
+          URL.revokeObjectURL(blobUrl);
+          resolve(false);
+          return;
+        }
+
+        w.document.open();
+        w.document.write(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>image</title></head><body style="margin:0;background:#fff;"><img src="${blobUrl}" alt="" style="display:block;width:100%;height:auto;user-select:none;-webkit-user-select:none;"></body></html>`);
+        w.document.close();
+        resolve(true);
+      }, 'image/png');
+    });
   }
 
   function showIOSSaveOptions({ file, canvas, button }) {
@@ -417,7 +431,7 @@
 
     btnShare.addEventListener('click', async () => {
       if (!navigator.share) {
-        const ok = openImageInNewTabFromCanvas(canvas);
+        const ok = await openImageInNewTabFromCanvas(canvas);
         if (!ok) alert('Tillad popups for at gemme billedet.');
         closeSheet();
         return;
@@ -431,14 +445,14 @@
           closeSheet();
           return;
         }
-        const ok = openImageInNewTabFromCanvas(canvas);
+        const ok = await openImageInNewTabFromCanvas(canvas);
         if (!ok) alert('Tillad popups for at gemme billedet.');
         closeSheet();
       }
     });
 
-    btnTab.addEventListener('click', () => {
-      const ok = openImageInNewTabFromCanvas(canvas);
+    btnTab.addEventListener('click', async () => {
+      const ok = await openImageInNewTabFromCanvas(canvas);
       if (!ok) alert('Tillad popups for at gemme billedet.');
       closeSheet();
     });
