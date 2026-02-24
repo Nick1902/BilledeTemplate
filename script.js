@@ -548,6 +548,20 @@
     })));
   }
 
+  function nextFrame() {
+    return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+  }
+
+  function canvasToBlob(canvas, mimeType) {
+    return new Promise((resolve) => {
+      if (!canvas || typeof canvas.toBlob !== 'function') {
+        resolve(null);
+        return;
+      }
+      canvas.toBlob((blob) => resolve(blob), mimeType);
+    });
+  }
+
   function renderCardCanvas(target, scale) {
     return html2canvas(target, {
       width: CARD_WIDTH,
@@ -587,7 +601,9 @@
 
     (async () => {
       try {
+        await nextFrame();
         await fixPhotoInClone(clone);
+        await nextFrame();
         await waitForDocumentFonts();
         await waitForImages(clone);
 
@@ -628,31 +644,24 @@
         }
 
         try {
-          if (canvas.toBlob) {
-            canvas.toBlob(async (blob) => {
-              if (!blob) {
-                console.error('toBlob returned null');
-                resetDownloadButton(btn);
-                alert('Download mislykkedes. Prøv igen.');
-                return;
-              }
-
-              const url = URL.createObjectURL(blob);
-              createDownloadFallback({
-                href: url,
-                filename,
-                cleanup: () => URL.revokeObjectURL(url),
-                button: btn
-              });
-            }, outputMime);
-          } else {
+          const blob = await canvasToBlob(canvas, outputMime);
+          if (blob) {
+            const url = URL.createObjectURL(blob);
             createDownloadFallback({
-              href: canvas.toDataURL(outputMime),
+              href: url,
               filename,
-              cleanup: null,
+              cleanup: () => URL.revokeObjectURL(url),
               button: btn
             });
+            return;
           }
+
+          createDownloadFallback({
+            href: canvas.toDataURL(outputMime),
+            filename,
+            cleanup: null,
+            button: btn
+          });
         } catch (err) {
           console.error('Download error:', err);
           resetDownloadButton(btn);
