@@ -474,11 +474,12 @@
     btn.classList.add('loading');
 
     const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    const supportsCanShare = typeof navigator.canShare === 'function';
     let iosPopup = null;
     let iosPopupBlocked = false;
 
-    // Must open immediately from user gesture, otherwise Safari blocks it.
-    if (isIOS) {
+    // For older iOS Safari (without canShare), pre-open immediately from user gesture.
+    if (isIOS && !supportsCanShare) {
       iosPopup = window.open('', '_blank');
       if (iosPopup) {
         iosPopup.document.write(`
@@ -541,12 +542,52 @@
         const safeName = rawName.replace(/\s+/g, '-') || 'attendee';
         const filename = `optimeet-card-${safeName}.${outputExt}`;
 
-        // iOS: avoid blob/file-share fallback issues ("No internet connection" on save).
-        // Opening a data URL image tab is the most reliable path for saving to Photos.
+        // iOS flow:
+        // 1) Try Web Share files first (native UX)
+        // 2) Fallback to image tab for long-press save
         if (isIOS) {
-          const opened = openIOSPhotoSaveTab(canvas, outputMime, iosPopup);
-          if (!opened || iosPopupBlocked) alert('Popup blev blokeret. Tillad popups og prøv igen.');
-          resetDownloadButton(btn);
+          if (navigator.canShare) {
+            canvas.toBlob(async (blob) => {
+              if (!blob) {
+                resetDownloadButton(btn);
+                alert('Kunne ikke generere billede.');
+                return;
+              }
+
+              const file = new File([blob], filename, { type: outputMime });
+
+              if (navigator.canShare({ files: [file] })) {
+                try {
+                  await navigator.share({
+                    files: [file],
+                    title: 'Optimeet card'
+                  });
+                  if (iosPopup && !iosPopup.closed) {
+                    try { iosPopup.close(); } catch (_) {}
+                  }
+                  resetDownloadButton(btn);
+                  return;
+                } catch (err) {
+                  if (err.name === 'AbortError') {
+                    if (iosPopup && !iosPopup.closed) {
+                      try { iosPopup.close(); } catch (_) {}
+                    }
+                    resetDownloadButton(btn);
+                    return;
+                  }
+                  console.warn('Web Share failed, falling back:', err);
+                }
+              }
+
+              const opened = openIOSPhotoSaveTab(canvas, outputMime, null);
+              if (!opened) alert('Popup blev blokeret. Tillad popups og prøv igen.');
+              resetDownloadButton(btn);
+            }, outputMime);
+          } else {
+            const opened = openIOSPhotoSaveTab(canvas, outputMime, iosPopup);
+            if (!opened || iosPopupBlocked) alert('Popup blev blokeret. Tillad popups og prøv igen.');
+            resetDownloadButton(btn);
+          }
           return;
         }
 
