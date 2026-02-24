@@ -1,4 +1,4 @@
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+﻿*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
   --accent: #4f7aff;
@@ -31,7 +31,7 @@ a {
   font-weight: 600;
   transition: color 0.2s;
 }
-/* ── HEADER ── */
+/* â”€â”€ HEADER â”€â”€ */
 .site-header {
   width: 100%;
   padding: 56px 32px 46px;
@@ -102,7 +102,7 @@ a {
   z-index: 1;
 }
 
-/* ── MAIN LAYOUT ── */
+/* â”€â”€ MAIN LAYOUT â”€â”€ */
 .workspace {
   display: grid;
   grid-template-columns: 340px 1fr;
@@ -115,7 +115,7 @@ a {
   z-index: 1;
 }
 
-/* ── PANEL ── */
+/* â”€â”€ PANEL â”€â”€ */
 .panel {
   background: rgba(13, 15, 30, 0.52);
   backdrop-filter: blur(20px);
@@ -164,7 +164,7 @@ input[type="text"]:focus, textarea:focus {
 }
 textarea { height: 80px; }
 
-/* ── UPLOAD ── */
+/* â”€â”€ UPLOAD â”€â”€ */
 .upload-area {
   border: 2px dashed rgba(255,255,255,0.12);
   border-radius: 10px;
@@ -184,7 +184,7 @@ textarea { height: 80px; }
 .upload-area p { font-size: 0.85rem; line-height: 1.5; }
 .upload-area p strong { color: var(--text); }
 
-/* ── ZOOM ── */
+/* â”€â”€ ZOOM â”€â”€ */
 .zoom-row {
   display: flex;
   align-items: center;
@@ -244,7 +244,7 @@ input[type="range"] {
   flex-shrink: 0;
 }
 
-/* ── DOWNLOAD BTN ── */
+/* â”€â”€ DOWNLOAD BTN â”€â”€ */
 .btn-download {
   width: 100%;
   padding: 14px;
@@ -262,7 +262,7 @@ input[type="range"] {
 .btn-download:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
 .btn-download:disabled { opacity: 0.35; cursor: not-allowed; }
 
-/* ── PREVIEW COLUMN ── */
+/* â”€â”€ PREVIEW COLUMN â”€â”€ */
 .preview-col {
   display: flex;
   flex-direction: column;
@@ -275,7 +275,7 @@ input[type="range"] {
   max-width: 520px;
 }
 
-/* ── THE CARD ── */
+/* â”€â”€ THE CARD â”€â”€ */
 .card-scale-container {
   width: 100%;
   aspect-ratio: 4 / 5;
@@ -288,7 +288,7 @@ input[type="range"] {
     0 8px 60px rgba(79,122,255,0.2);
 }
 
-/* This is what gets captured — always 800×1000 */
+/* This is what gets captured â€” always 800Ã—1000 */
 #card-live {
   position: absolute;
   top: 0; left: 0;
@@ -309,7 +309,7 @@ input[type="range"] {
   z-index: 0;
 }
 
-/* Blue diagonal light rays — purely CSS */
+/* Blue diagonal light rays â€” purely CSS */
 .card-rays {
   position: absolute;
   inset: 0;
@@ -369,7 +369,7 @@ input[type="range"] {
   object-fit: contain;
 }
 
-/* ── CARD BOTTOM ROW ── */
+/* â”€â”€ CARD BOTTOM ROW â”€â”€ */
 .card-bottom {
   display: flex;
   flex-direction: row;
@@ -422,7 +422,7 @@ input[type="range"] {
   text-align: center;
 }
 
-/* ── RIGHT COLUMN: logo + stand ── */
+/* â”€â”€ RIGHT COLUMN: logo + stand â”€â”€ */
 .card-info {
   flex: 1;
   display: flex;
@@ -435,7 +435,7 @@ input[type="range"] {
   padding-left: 50px;
 }
 
-/* Logo wrapper — centered in its column */
+/* Logo wrapper â€” centered in its column */
 .profile-logo-area {
   display: flex;
   flex-direction: column;
@@ -502,7 +502,7 @@ input[type="range"] {
   width: 100%;
 }
 
-/* ── EVENT BANNER ── */
+/* â”€â”€ EVENT BANNER â”€â”€ */
 .card-banner {
   position: absolute;
   bottom: 0;
@@ -585,19 +585,14 @@ input[type="range"] {
   flex-shrink: 0;
 }
 
-/* ── LOADING STATE ── */
+/* â”€â”€ LOADING STATE â”€â”€ */
 .btn-download.loading { opacity: 0.6; pointer-events: none; }
 
 
-/* ═══════════════════════════════════════════════════════
-   MOBILE TAB LAYOUT  (≤ 800px)
-   ═══════════════════════════════════════════════════════ */
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   MOBILE TAB LAYOUT  (â‰¤ 800px)
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 @media (max-width: 800px) {
-
-  body {
-    padding-bottom: calc(80px + env(safe-area-inset-bottom));
-  }
-
   .site-header {
     padding: 30px 18px 24px;
   }
@@ -614,7 +609,7 @@ input[type="range"] {
     letter-spacing: 0.12em;
   }
 
-  /* ── Tab bar ── */
+  /* â”€â”€ Tab bar â”€â”€ */
   .mobile-tabs {
     display: flex !important;
     position: sticky;
@@ -660,7 +655,7 @@ input[type="range"] {
     flex-shrink: 0;
   }
 
-  /* ── Workspace single column ── */
+  /* â”€â”€ Workspace single column â”€â”€ */
   .workspace {
     display: block;
     padding: 0;
@@ -719,7 +714,7 @@ input[type="range"] {
     font-size: 17px;
   }
 
-  /* ── Zoom on preview tab ── */
+  /* â”€â”€ Zoom on preview tab â”€â”€ */
   .floating-zoom {
     width: 100%;
     max-width: 400px;
@@ -730,7 +725,7 @@ input[type="range"] {
     display: flex;
   }
 
-  /* ── Upload areas ── */
+  /* â”€â”€ Upload areas â”€â”€ */
   .upload-area {
     padding: 28px 20px;
     gap: 12px;
@@ -740,7 +735,7 @@ input[type="range"] {
     font-size: 0.9rem;
   }
 
-  /* ── Inputs ── */
+  /* â”€â”€ Inputs â”€â”€ */
   input[type="text"], textarea {
     padding: 14px 16px;
     font-size: 1rem;
@@ -756,7 +751,7 @@ input[type="range"] {
     margin-bottom: 10px;
   }
 
-  /* ── "Preview card" CTA in edit panel ── */
+  /* â”€â”€ "Preview card" CTA in edit panel â”€â”€ */
   .mobile-preview-cta {
     display: flex !important;
     align-items: center;
@@ -782,19 +777,12 @@ input[type="range"] {
     background: rgba(79, 122, 255, 0.1);
   }
 
-  /* ── Fixed bottom download bar ── */
+  /* â”€â”€ Fixed bottom download bar â”€â”€ */
   .mobile-download-bar {
     display: flex !important;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 200;
-    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-    background: rgba(6, 8, 22, 0.97);
-    border-top: 1px solid rgba(255,255,255,0.07);
-    backdrop-filter: blur(12px);
-    box-shadow: 0 -4px 24px rgba(0,0,0,0.4);
+    width: 100%;
+    max-width: 400px;
+    margin-top: 10px;
   }
 
   .mobile-download-bar .btn-download {
@@ -827,7 +815,7 @@ input[type="range"] {
 
 }
 
-/* ── DESKTOP: hide mobile-only elements ── */
+/* â”€â”€ DESKTOP: hide mobile-only elements â”€â”€ */
 .mobile-tabs,
 .mobile-download-bar,
 .mobile-preview-cta {
@@ -864,3 +852,4 @@ input::placeholder {
   font-size: 14px;
   color: #999;
 }
+
