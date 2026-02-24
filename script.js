@@ -392,6 +392,52 @@
     });
   }
 
+  function waitForDocumentFonts(timeoutMs = 3000) {
+    if (!document.fonts || !document.fonts.ready) return Promise.resolve();
+    return Promise.race([
+      document.fonts.ready.catch(() => {}),
+      new Promise((resolve) => setTimeout(resolve, timeoutMs))
+    ]);
+  }
+
+  function waitForImages(root, timeoutMs = 5000) {
+    const images = Array.from(root.querySelectorAll('img')).filter((img) => Boolean(img.src));
+    if (images.length === 0) return Promise.resolve();
+
+    return Promise.all(images.map((img) => new Promise((resolve) => {
+      if (img.complete && img.naturalWidth > 0) {
+        resolve();
+        return;
+      }
+
+      let settled = false;
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        img.removeEventListener('load', done);
+        img.removeEventListener('error', done);
+        resolve();
+      };
+
+      img.addEventListener('load', done, { once: true });
+      img.addEventListener('error', done, { once: true });
+      setTimeout(done, timeoutMs);
+    })));
+  }
+
+  function renderCardCanvas(target, scale) {
+    return html2canvas(target, {
+      width: CARD_WIDTH,
+      height: CARD_HEIGHT,
+      scale,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: null,
+      logging: false,
+      imageTimeout: 15000
+    });
+  }
+
   function doDownload(btn) {
     if (!btn || !dom.scaleContainer) return;
 
@@ -414,20 +460,24 @@
     wrapper.appendChild(clone);
     document.body.appendChild(wrapper);
 
-    fixPhotoInClone(clone).then(() => {
-      const captureScale = Math.max(2, Math.round(window.devicePixelRatio || 2));
-      const target = clonedCardLive || clone;
+    (async () => {
+      try {
+        await fixPhotoInClone(clone);
+        await waitForDocumentFonts();
+        await waitForImages(clone);
 
-      html2canvas(target, {
-        width: CARD_WIDTH,
-        height: CARD_HEIGHT,
-        scale: captureScale,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: null,
-        logging: false
-      }).then((canvas) => {
-        document.body.removeChild(wrapper);
+        const target = clonedCardLive || clone;
+        const preferredScale = Math.max(2, Math.round(window.devicePixelRatio || 2));
+        let canvas;
+
+        try {
+          canvas = await renderCardCanvas(target, preferredScale);
+        } catch (firstErr) {
+          console.warn('Primary html2canvas render failed, retrying with lower scale.', firstErr);
+          canvas = await renderCardCanvas(target, 1);
+        }
+
+        if (wrapper.parentNode) document.body.removeChild(wrapper);
 
         const outputMime = 'image/png';
         const outputExt = 'png';
@@ -439,7 +489,12 @@
         try {
           if (canvas.toBlob) {
             canvas.toBlob(async (blob) => {
-              if (!blob) throw new Error('toBlob returned null');
+              if (!blob) {
+                console.error('toBlob returned null');
+                resetDownloadButton(btn);
+                alert('Download mislykkedes. Prøv igen.');
+                return;
+              }
 
               if (isIOS && navigator.share) {
                 try {
@@ -501,13 +556,13 @@
           resetDownloadButton(btn);
           alert('Download mislykkedes pga. en sikkerhedsbegrænsning.');
         }
-      }).catch((err) => {
+      } catch (err) {
         if (wrapper.parentNode) document.body.removeChild(wrapper);
         console.error('html2canvas error:', err);
         resetDownloadButton(btn);
-        alert('Download mislykkedes. Åbn DevTools og tjek konsollen for detaljer.');
-      });
-    });
+        alert('Download mislykkedes. Prøv igen.');
+      }
+    })();
   }
 
   function init() {
