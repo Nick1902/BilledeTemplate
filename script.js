@@ -351,9 +351,11 @@
 
   function openImageInNewTabFromCanvas(canvas) {
     const dataUrl = canvas.toDataURL('image/png');
-    const w = window.open('about:blank', '_blank');
+    const w = window.open('', '_blank');
     if (!w) return false;
-    w.location.replace(dataUrl);
+    w.document.open();
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>image</title></head><body style="margin:0;background:#fff;"><img src="${dataUrl}" alt="" style="display:block;width:100%;height:auto;"></body></html>`);
+    w.document.close();
     return true;
   }
 
