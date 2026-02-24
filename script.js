@@ -438,6 +438,35 @@
     });
   }
 
+  function openIOSPhotoSaveTab(canvas, mimeType) {
+    const dataUrl = canvas.toDataURL(mimeType);
+    const popup = window.open('', '_blank', 'noopener');
+    if (!popup) return false;
+
+    popup.document.write(`
+      <html>
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
+          <title>Gem billede</title>
+          <style>
+            body{margin:0;background:#0b1022;color:#e8eaf6;font-family:Arial,sans-serif}
+            .wrap{padding:14px;text-align:center}
+            .hint{font-size:14px;opacity:.9;margin:0 0 10px}
+            img{max-width:100%;height:auto;display:block;margin:0 auto;border-radius:8px}
+          </style>
+        </head>
+        <body>
+          <div class="wrap">
+            <p class="hint">Tryk og hold på billedet og vælg "Føj til Fotos"</p>
+            <img src="${dataUrl}" alt="Optimeet card" />
+          </div>
+        </body>
+      </html>
+    `);
+    popup.document.close();
+    return true;
+  }
+
   function doDownload(btn) {
     if (!btn || !dom.scaleContainer) return;
 
@@ -486,6 +515,15 @@
         const filename = `optimeet-card-${safeName}.${outputExt}`;
         const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
 
+        // iOS: avoid blob/file-share fallback issues ("No internet connection" on save).
+        // Opening a data URL image tab is the most reliable path for saving to Photos.
+        if (isIOS) {
+          const opened = openIOSPhotoSaveTab(canvas, outputMime);
+          if (!opened) alert('Tillad popups for at kunne gemme billedet på iPhone.');
+          resetDownloadButton(btn);
+          return;
+        }
+
         try {
           if (canvas.toBlob) {
             canvas.toBlob(async (blob) => {
@@ -493,34 +531,6 @@
                 console.error('toBlob returned null');
                 resetDownloadButton(btn);
                 alert('Download mislykkedes. Prøv igen.');
-                return;
-              }
-
-              if (isIOS && navigator.share) {
-                try {
-                  const file = new File([blob], filename, { type: outputMime, lastModified: Date.now() });
-                  await navigator.share({ files: [file], title: filename });
-                  resetDownloadButton(btn);
-                  return;
-                } catch (shareErr) {
-                  if (shareErr.name === 'AbortError') {
-                    resetDownloadButton(btn);
-                    return;
-                  }
-
-                  const iOSUrl = URL.createObjectURL(blob);
-                  window.open(iOSUrl, '_blank', 'noopener');
-                  setTimeout(() => URL.revokeObjectURL(iOSUrl), 30000);
-                  resetDownloadButton(btn);
-                  return;
-                }
-              }
-
-              if (isIOS) {
-                const iOSUrl = URL.createObjectURL(blob);
-                window.open(iOSUrl, '_blank', 'noopener');
-                setTimeout(() => URL.revokeObjectURL(iOSUrl), 30000);
-                resetDownloadButton(btn);
                 return;
               }
 
@@ -533,17 +543,6 @@
               });
             }, outputMime);
           } else {
-            if (isIOS) {
-              const dataUrl = canvas.toDataURL(outputMime);
-              const popup = window.open('', '_blank', 'noopener');
-              if (popup) {
-                popup.document.write(`<img src="${dataUrl}" style="max-width:100%;height:auto;display:block;margin:0 auto;" alt="Optimeet card">`);
-                popup.document.close();
-              }
-              resetDownloadButton(btn);
-              return;
-            }
-
             createDownloadFallback({
               href: canvas.toDataURL(outputMime),
               filename,
