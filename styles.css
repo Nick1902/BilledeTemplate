@@ -822,6 +822,48 @@ input[type="range"] {
   margin-top: 8px;
 }
 
+/* iOS/new-tab save helper */
+.save-tip {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: calc(88px + env(safe-area-inset-bottom));
+  z-index: 260;
+  background: rgba(6, 8, 22, 0.97);
+  border: 1px solid rgba(79, 122, 255, 0.45);
+  border-radius: 12px;
+  padding: 12px 14px;
+  color: var(--text);
+  font-size: 0.85rem;
+  line-height: 1.35;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.save-tip.active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (min-width: 801px) {
+  .save-tip {
+    max-width: 520px;
+    left: 50%;
+    right: auto;
+    bottom: 20px;
+    transform: translate(-50%, 8px);
+  }
+
+  .save-tip.active {
+    transform: translate(-50%, 0);
+  }
+}
+
 @media (max-width: 480px) {
   .card-wrapper { max-width: 100%; }
 }

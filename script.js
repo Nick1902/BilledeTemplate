@@ -56,6 +56,7 @@
   let zoom = 100;
   let logoScale = 100;
   let photoDragBound = false;
+  let saveTipTimer = null;
 
   window.switchTab = (tab) => {
     if (!dom.editPane || !dom.previewPane || !dom.tabEditBtn || !dom.tabPreviewBtn) return;
@@ -327,6 +328,26 @@
     btn.classList.remove('loading');
   }
 
+  function showSaveTip(message) {
+    let tip = byId('save-tip');
+    if (!tip) {
+      tip = document.createElement('div');
+      tip.id = 'save-tip';
+      tip.className = 'save-tip';
+      tip.setAttribute('role', 'status');
+      tip.setAttribute('aria-live', 'polite');
+      document.body.appendChild(tip);
+    }
+
+    tip.textContent = message;
+    tip.classList.add('active');
+
+    if (saveTipTimer) clearTimeout(saveTipTimer);
+    saveTipTimer = setTimeout(() => {
+      tip.classList.remove('active');
+    }, 7000);
+  }
+
   function createDownloadFallback({ href, filename, cleanup, button }) {
     const link = document.createElement('a');
     link.style.display = 'none';
@@ -453,6 +474,7 @@
 
                   const iOSUrl = URL.createObjectURL(blob);
                   window.open(iOSUrl, '_blank', 'noopener');
+                  showSaveTip('OBS: Hvis billedet åbner i en ny fane, kan du trykke og holde på billedet for at gemme det.');
                   setTimeout(() => URL.revokeObjectURL(iOSUrl), 30000);
                   resetDownloadButton(btn);
                   return;
@@ -462,6 +484,7 @@
               if (isIOS) {
                 const iOSUrl = URL.createObjectURL(blob);
                 window.open(iOSUrl, '_blank', 'noopener');
+                showSaveTip('OBS: Hvis billedet åbner i en ny fane, kan du trykke og holde på billedet for at gemme det.');
                 setTimeout(() => URL.revokeObjectURL(iOSUrl), 30000);
                 resetDownloadButton(btn);
                 return;
@@ -483,6 +506,7 @@
                 popup.document.write(`<img src="${dataUrl}" style="max-width:100%;height:auto;display:block;margin:0 auto;" alt="Optimeet card">`);
                 popup.document.close();
               }
+              showSaveTip('OBS: Hvis billedet åbner i en ny fane, kan du trykke og holde på billedet for at gemme det.');
               resetDownloadButton(btn);
               return;
             }
