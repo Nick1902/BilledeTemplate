@@ -349,22 +349,120 @@
     resetDownloadButton(button);
   }
 
+  // FORBEDRET: Åbn billede i ny fane med korrekt HTML/CSS til iOS
   function openImageInNewTabFromCanvas(canvas) {
     const dataUrl = canvas.toDataURL('image/png');
-    const popup = window.open(dataUrl, '_blank');
-    if (popup) return true;
+    
+    // Lav korrekt HTML til iOS med optimeret CSS
+    const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Optimeet Card</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+    
+    body {
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      
+      /* VIGTIGT: Forhindre tekstmarkering */
+      user-select: none;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      
+      /* VIGTIGT: Tillad iOS long-press menu */
+      -webkit-touch-callout: default;
+    }
+    
+    img {
+      max-width: 100%;
+      max-height: 100vh;
+      width: auto;
+      height: auto;
+      display: block;
+      
+      /* VIGTIGT: Tillad iOS context menu på billedet */
+      -webkit-touch-callout: default;
+      pointer-events: auto;
+      
+      /* Forhindre drag på selve billedet */
+      -webkit-user-drag: none;
+      user-drag: none;
+    }
+    
+    .instruction {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.85);
+      color: white;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      font-size: 14px;
+      text-align: center;
+      z-index: 1000;
+      animation: fadeOut 4s ease-in-out forwards;
+      pointer-events: none;
+    }
+    
+    @keyframes fadeOut {
+      0%, 70% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+  <img src="${dataUrl}" alt="Optimeet Card">
+  <div class="instruction">📥 Hold på billedet og tryk "Gem billede"</div>
+</body>
+</html>`;
 
+    // Prøv at åbne i ny fane
+    const popup = window.open('', '_blank');
+    if (popup) {
+      popup.document.write(htmlContent);
+      popup.document.close();
+      return true;
+    }
+
+    // Fallback hvis popup blev blokeret
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    
     const link = document.createElement('a');
-    link.href = dataUrl;
+    link.href = url;
     link.target = '_blank';
     link.rel = 'noopener';
     link.style.display = 'none';
     document.body.appendChild(link);
     link.click();
-    link.remove();
+    
+    setTimeout(() => {
+      link.remove();
+      URL.revokeObjectURL(url);
+    }, 1000);
+    
     return true;
   }
 
+  // FORBEDRET: Vis fallback-besked hvis share fejler
   function showIOSFallbackNotice(canvas, button, file) {
     const existing = byId('ios-download-fallback');
     if (existing) existing.remove();
@@ -375,31 +473,39 @@
       'position:fixed',
       'left:16px',
       'right:16px',
-      'bottom:16px',
+      'bottom:80px',
       'z-index:9999',
-      'background:rgba(8,10,24,0.96)',
-      'border:1px solid rgba(255,255,255,0.18)',
-      'border-radius:12px',
-      'padding:10px 12px',
-      'color:#e8eaf6',
-      'font-family:Arial,sans-serif',
-      'font-size:13px',
-      'line-height:1.35',
-      'text-align:center'
+      'background:rgba(8,10,24,0.98)',
+      'border:2px solid rgba(255,255,255,0.2)',
+      'border-radius:16px',
+      'padding:20px',
+      'color:#fff',
+      'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif',
+      'font-size:15px',
+      'line-height:1.5',
+      'box-shadow:0 8px 32px rgba(0,0,0,0.4)'
     ].join(';');
 
-    const text = document.createElement('div');
-    text.textContent = 'Download via Deling mislykkedes.';
+    const title = document.createElement('div');
+    title.textContent = '📤 Vælg hvordan du vil gemme';
+    title.style.cssText = 'font-weight:600;margin-bottom:16px;font-size:16px;text-align:center;';
 
+    const btnContainer = document.createElement('div');
+    btnContainer.style.cssText = 'display:flex;flex-direction:column;gap:12px;';
+
+    // Knap 1: Prøv deling igen
     const shareAgain = document.createElement('button');
     shareAgain.type = 'button';
-    shareAgain.textContent = 'Prøv deling igen';
-    shareAgain.style.cssText = 'margin-top:6px;padding:0;border:none;background:transparent;color:#9bb7ff;text-decoration:underline;font-size:13px;cursor:pointer;';
-
-    const link = document.createElement('button');
-    link.type = 'button';
-    link.textContent = 'Tryk her for at åbne billedet i ny fane';
-    link.style.cssText = 'margin-top:6px;padding:0;border:none;background:transparent;color:#9bb7ff;text-decoration:underline;font-size:13px;cursor:pointer;';
+    shareAgain.innerHTML = '📤 Prøv deling igen';
+    shareAgain.style.cssText = 'padding:14px;background:#007AFF;color:white;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;transition:opacity 0.2s;';
+    
+    shareAgain.addEventListener('touchstart', () => {
+      shareAgain.style.opacity = '0.7';
+    });
+    
+    shareAgain.addEventListener('touchend', () => {
+      shareAgain.style.opacity = '1';
+    });
 
     shareAgain.addEventListener('click', async () => {
       if (!navigator.share) {
@@ -410,28 +516,65 @@
       try {
         await navigator.share({ files: [file], title: 'Optimeet card' });
         box.remove();
+        resetDownloadButton(button);
       } catch (err) {
-        if (err.name === 'AbortError') return;
-        alert('Deling mislykkedes igen. Brug ny fane-linket.');
+        if (err.name === 'AbortError') {
+          // Bruger annullerede - fjern ikke boksen
+          return;
+        }
+        console.error('Share error:', err);
       }
     });
 
-    link.addEventListener('click', () => {
-      const ok = openImageInNewTabFromCanvas(canvas);
-      if (!ok) alert('Tillad popups for at åbne billedet i ny fane.');
-      box.remove();
+    // Knap 2: Åbn i ny fane
+    const openTab = document.createElement('button');
+    openTab.type = 'button';
+    openTab.innerHTML = '🖼️ Åbn billede (hold &amp; gem)';
+    openTab.style.cssText = 'padding:14px;background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.3);border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;transition:opacity 0.2s;';
+    
+    openTab.addEventListener('touchstart', () => {
+      openTab.style.opacity = '0.7';
+    });
+    
+    openTab.addEventListener('touchend', () => {
+      openTab.style.opacity = '1';
     });
 
-    box.appendChild(text);
-    box.appendChild(shareAgain);
-    box.appendChild(link);
+    openTab.addEventListener('click', () => {
+      const ok = openImageInNewTabFromCanvas(canvas);
+      if (!ok) {
+        alert('Tillad popups i Safari for at åbne billedet.');
+      }
+      box.remove();
+      resetDownloadButton(button);
+    });
+
+    // Luk knap
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = 'position:absolute;top:8px;right:8px;background:transparent;border:none;color:rgba(255,255,255,0.6);font-size:20px;cursor:pointer;padding:4px 8px;';
+    
+    closeBtn.addEventListener('click', () => {
+      box.remove();
+      resetDownloadButton(button);
+    });
+
+    btnContainer.appendChild(shareAgain);
+    btnContainer.appendChild(openTab);
+    
+    box.appendChild(closeBtn);
+    box.appendChild(title);
+    box.appendChild(btnContainer);
     document.body.appendChild(box);
 
-    resetDownloadButton(button);
-
+    // Auto-fjern efter 20 sekunder
     setTimeout(() => {
-      if (box.parentNode) box.remove();
-    }, 12000);
+      if (box.parentNode) {
+        box.remove();
+        resetDownloadButton(button);
+      }
+    }, 20000);
   }
 
   function fixPhotoInClone(clone) {
@@ -523,6 +666,7 @@
     });
   }
 
+  // FORBEDRET: iOS download med ALTID share først, derefter fallback
   function doDownload(btn) {
     if (!btn || !dom.scaleContainer) return;
 
@@ -566,12 +710,11 @@
 
         if (wrapper.parentNode) document.body.removeChild(wrapper);
 
-        const outputMime = 'image/png';
-        const outputExt = 'png';
         const rawName = dom.nameInput ? dom.nameInput.value.trim() : '';
         const safeName = rawName.replace(/\s+/g, '-') || 'attendee';
-        const filename = `optimeet-card-${safeName}.${outputExt}`;
+        const filename = `optimeet-card-${safeName}.png`;
 
+        // IOS: ALTID forsøg share først
         if (isIOS) {
           canvas.toBlob(async (blob) => {
             if (!blob) {
@@ -580,28 +723,40 @@
               return;
             }
 
-            const iosRawName = dom.nameInput ? dom.nameInput.value.trim() : '';
-            const iosSafeName = iosRawName.replace(/\s+/g, '-') || 'attendee';
-            const iosFilename = `optimeet-card-${iosSafeName}.png`;
-            const file = new File([blob], iosFilename, { type: 'image/png' });
-            if (navigator.share) {
+            const file = new File([blob], filename, { type: 'image/png' });
+            
+            // Tjek om share er tilgængelig OG om vi kan share filer
+            if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
               try {
-                await navigator.share({ files: [file], title: 'Optimeet card' });
+                await navigator.share({ 
+                  files: [file], 
+                  title: 'Optimeet card',
+                  text: 'Mit Optimeet kort' 
+                });
                 resetDownloadButton(btn);
                 return;
               } catch (err) {
+                // Hvis bruger annullerede (AbortError), reset knap og stop
                 if (err.name === 'AbortError') {
                   resetDownloadButton(btn);
                   return;
                 }
+                
+                // Ved andre fejl, vis fallback-valgmuligheder
+                console.warn('Share failed:', err);
+                showIOSFallbackNotice(canvas, btn, file);
+                return;
               }
             }
-
+            
+            // Hvis share slet ikke er tilgængelig, vis fallback direkte
             showIOSFallbackNotice(canvas, btn, file);
           }, 'image/png');
           return;
         }
 
+        // DESKTOP/ANDROID: Brug normal download
+        const outputMime = 'image/png';
         try {
           if (canvas.toBlob) {
             canvas.toBlob(async (blob) => {
