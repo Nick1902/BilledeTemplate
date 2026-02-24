@@ -351,23 +351,9 @@
 
   function openImageInNewTabFromCanvas(canvas) {
     const dataUrl = canvas.toDataURL('image/png');
-    const w = window.open('', '_blank');
+    const w = window.open('about:blank', '_blank');
     if (!w) return false;
-    w.document.write(`
-      <html><head>
-        <meta name="viewport" content="width=device-width,initial-scale=1">
-        <title>Gem billede</title>
-        <style>
-          body{margin:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;color:#fff;font-family:sans-serif;gap:12px}
-          img{max-width:100%;border-radius:8px}
-          p{font-size:14px;opacity:.8;padding:0 14px;text-align:center}
-        </style>
-      </head><body>
-        <p>Tryk og hold på billedet → "Føj til Fotos"</p>
-        <img src="${dataUrl}" alt="Optimeet card">
-      </body></html>
-    `);
-    w.document.close();
+    w.location.replace(dataUrl);
     return true;
   }
 
@@ -409,12 +395,12 @@
 
     const btnShare = document.createElement('button');
     btnShare.type = 'button';
-    btnShare.textContent = 'Gem via Del-menu';
+    btnShare.textContent = 'Gem billede (anbefalet)';
     btnShare.style.cssText = 'padding:12px;border-radius:10px;border:none;background:#4f7aff;color:#fff;font-weight:700;font-size:14px;cursor:pointer;';
 
     const btnTab = document.createElement('button');
     btnTab.type = 'button';
-    btnTab.textContent = 'Åbn billede (tryk og hold)';
+    btnTab.textContent = 'Åbn billede i ny fane';
     btnTab.style.cssText = 'padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.22);background:transparent;color:#e8eaf6;font-weight:700;font-size:14px;cursor:pointer;';
 
     const btnClose = document.createElement('button');
