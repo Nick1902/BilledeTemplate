@@ -349,7 +349,7 @@
     resetDownloadButton(button);
   }
 
-  function openImageInNewTabFromCanvas(canvas) {
+  function openImageInNewTabFromCanvas(canvas, preOpenedTab = null) {
     return new Promise((resolve) => {
       canvas.toBlob((blob) => {
         if (!blob) {
@@ -358,7 +358,7 @@
         }
 
         const blobUrl = URL.createObjectURL(blob);
-        const w = window.open('', '_blank');
+        const w = preOpenedTab && !preOpenedTab.closed ? preOpenedTab : window.open('', '_blank');
         if (!w) {
           URL.revokeObjectURL(blobUrl);
           resolve(false);
@@ -368,6 +368,13 @@
         w.document.open();
         w.document.write(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>image</title></head><body style="margin:0;background:#fff;"><img src="${blobUrl}" alt="" style="display:block;width:100%;height:auto;user-select:none;-webkit-user-select:none;"></body></html>`);
         w.document.close();
+        setTimeout(() => {
+          try {
+            URL.revokeObjectURL(blobUrl);
+          } catch (_) {
+            // no-op
+          }
+        }, 60000);
         resolve(true);
       }, 'image/png');
     });
@@ -431,7 +438,12 @@
 
     btnShare.addEventListener('click', async () => {
       if (!navigator.share) {
-        const ok = await openImageInNewTabFromCanvas(canvas);
+        const tab = window.open('', '_blank');
+        if (!tab) {
+          alert('Tillad popups for at gemme billedet.');
+          return;
+        }
+        const ok = await openImageInNewTabFromCanvas(canvas, tab);
         if (!ok) alert('Tillad popups for at gemme billedet.');
         closeSheet();
         return;
@@ -445,14 +457,17 @@
           closeSheet();
           return;
         }
-        const ok = await openImageInNewTabFromCanvas(canvas);
-        if (!ok) alert('Tillad popups for at gemme billedet.');
-        closeSheet();
+        alert('Deling mislykkedes. Tryk "Åbn billede i ny fane".');
       }
     });
 
     btnTab.addEventListener('click', async () => {
-      const ok = await openImageInNewTabFromCanvas(canvas);
+      const tab = window.open('', '_blank');
+      if (!tab) {
+        alert('Tillad popups for at gemme billedet.');
+        return;
+      }
+      const ok = await openImageInNewTabFromCanvas(canvas, tab);
       if (!ok) alert('Tillad popups for at gemme billedet.');
       closeSheet();
     });
@@ -568,7 +583,7 @@
       height: CARD_HEIGHT,
       scale,
       useCORS: true,
-      allowTaint: true,
+      allowTaint: false,
       backgroundColor: null,
       logging: false,
       imageTimeout: 15000
