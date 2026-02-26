@@ -57,6 +57,7 @@
   let logoScale = 100;
   let photoDragBound = false;
   let lastViewportWidth = window.innerWidth;
+  let bgImageDataUrl = null; // preloaded base64 version of baggrund.jpg
 
   window.switchTab = (tab) => {
     if (!dom.editPane || !dom.previewPane || !dom.tabEditBtn || !dom.tabPreviewBtn) return;
@@ -307,14 +308,168 @@
     probeImg.src = probeUrl;
   }
 
+  // Preload background image as base64 so html2canvas never fetches it cross-origin
   function setBackgroundImage() {
-    if (!dom.cardBg || !BG_IMAGE_URL) return;
-    dom.cardBg.style.backgroundImage = `
+    if (!dom.cardBg) return;
+
+    const applyBg = (src) => {
+      dom.cardBg.style.backgroundImage = `
+        linear-gradient(160deg, rgba(10,14,50,0.72) 0%, rgba(20,10,60,0.55) 50%, rgba(5,5,20,0.85) 100%),
+        url('${src}')
+      `;
+      dom.cardBg.style.backgroundSize = 'cover';
+      dom.cardBg.style.backgroundPosition = 'center';
+    };
+
+    // Apply immediately with original URL so the card looks right while fetch runs
+    applyBg(BG_IMAGE_URL);
+
+    // Then fetch and convert to base64 — this is what html2canvas will see
+    fetch(BG_IMAGE_URL)
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.blob();
+      })
+      .then((blob) => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      }))
+      .then((dataUrl) => {
+        bgImageDataUrl = dataUrl;
+        applyBg(dataUrl); // swap CSS to data URL — now html2canvas sees no cross-origin request
+      })
+      .catch(() => {
+        // Couldn't preload — html2canvas will likely fail on the bg image,
+        // but we handle that gracefully in fixBgInClone
+        bgImageDataUrl = null;
+      });
+  }
+
+  // Before html2canvas runs, ensure the cloned card-bg uses the base64 src
+  // so there's zero cross-origin network activity during render
+  function fixBgInClone(clone) {
+    const clonedBg = clone.querySelector('#card-bg');
+    if (!clonedBg) return;
+
+    const src = bgImageDataUrl || BG_IMAGE_URL;
+    clonedBg.style.backgroundImage = `
       linear-gradient(160deg, rgba(10,14,50,0.72) 0%, rgba(20,10,60,0.55) 50%, rgba(5,5,20,0.85) 100%),
-      url('${BG_IMAGE_URL}')
+      url('${src}')
     `;
-    dom.cardBg.style.backgroundSize = 'cover';
-    dom.cardBg.style.backgroundPosition = 'center';
+    clonedBg.style.backgroundSize = 'cover';
+    clonedBg.style.backgroundPosition = 'center';
+  }
+
+  function fixPhotoInClone(clone) {
+    if (!imgEl || !imgEl.src || !dom.photoInner) return Promise.resolve();
+
+    const clonedPhotoInner = clone.querySelector('#photo-inner');
+    if (!clonedPhotoInner) return Promise.resolve();
+
+    // Use live element dimensions — clone may not have reflowed yet
+    const photoW = dom.photoInner.offsetWidth;
+    const photoH = dom.photoInner.offsetHeight;
+
+    if (!photoW || !photoH) return Promise.resolve();
+
+    return new Promise((resolve) => {
+      const nativeImg = new Image();
+      nativeImg.onload = () => {
+        const dpr = 2;
+        const canvas = document.createElement('canvas');
+        canvas.width = photoW * dpr;
+        canvas.height = photoH * dpr;
+        canvas.style.cssText = `position:absolute;top:0;left:0;width:${photoW}px;height:${photoH}px;`;
+
+        const ctx = canvas.getContext('2d');
+        ctx.scale(dpr, dpr);
+
+        const containScale =
+          Math.min(photoW / nativeImg.naturalWidth, photoH / nativeImg.naturalHeight) *
+          (zoom / 100);
+        const scaledW = nativeImg.naturalWidth * containScale;
+        const scaledH = nativeImg.naturalHeight * containScale;
+        const drawX = (photoW - scaledW) / 2 + imgX;
+        const drawY = (photoH - scaledH) / 2 + imgY;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, photoW, photoH);
+        ctx.clip();
+        ctx.drawImage(nativeImg, drawX, drawY, scaledW, scaledH);
+        ctx.restore();
+
+        const clonedImg = clonedPhotoInner.querySelector('img');
+        if (clonedImg) clonedImg.remove();
+
+        clonedPhotoInner.appendChild(canvas);
+        resolve();
+      };
+      nativeImg.onerror = resolve;
+      nativeImg.src = imgEl.src; // already a data URL — no CORS issue
+    });
+  }
+
+  function waitForDocumentFonts(timeoutMs = 3000) {
+    if (!document.fonts || !document.fonts.ready) return Promise.resolve();
+    return Promise.race([
+      document.fonts.ready.catch(() => {}),
+      new Promise((resolve) => setTimeout(resolve, timeoutMs))
+    ]);
+  }
+
+  function waitForImages(root, timeoutMs = 5000) {
+    const images = Array.from(root.querySelectorAll('img')).filter((img) => Boolean(img.src));
+    if (images.length === 0) return Promise.resolve();
+
+    return Promise.all(images.map((img) => new Promise((resolve) => {
+      if (img.complete && img.naturalWidth > 0) { resolve(); return; }
+
+      let settled = false;
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        img.removeEventListener('load', done);
+        img.removeEventListener('error', done);
+        resolve();
+      };
+
+      img.addEventListener('load', done, { once: true });
+      img.addEventListener('error', done, { once: true });
+      setTimeout(done, timeoutMs);
+    })));
+  }
+
+  function waitForReflow() {
+    return new Promise((resolve) => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          resolve();
+        });
+      });
+    });
+  }
+
+  function canvasToBlob(canvas, mimeType) {
+    return new Promise((resolve) => {
+      if (!canvas || typeof canvas.toBlob !== 'function') { resolve(null); return; }
+      canvas.toBlob((blob) => resolve(blob), mimeType);
+    });
+  }
+
+  function renderCardCanvas(target, scale) {
+    return html2canvas(target, {
+      width: CARD_WIDTH,
+      height: CARD_HEIGHT,
+      scale,
+      useCORS: true,
+      allowTaint: false,
+      backgroundColor: null,
+      logging: false,
+      imageTimeout: 15000
+    });
   }
 
   function resetDownloadButton(btn) {
@@ -328,7 +483,6 @@
     btn.classList.remove('loading');
   }
 
-
   function createDownloadFallback({ href, filename, cleanup, button }) {
     const link = document.createElement('a');
     link.style.display = 'none';
@@ -338,11 +492,7 @@
     link.click();
 
     setTimeout(() => {
-      try {
-        link.remove();
-      } catch (_) {
-        // no-op
-      }
+      try { link.remove(); } catch (_) {}
       if (cleanup) cleanup();
     }, 1000);
 
@@ -352,29 +502,16 @@
   function openImageInNewTabFromCanvas(canvas, preOpenedTab = null) {
     return new Promise((resolve) => {
       canvas.toBlob((blob) => {
-        if (!blob) {
-          resolve(false);
-          return;
-        }
+        if (!blob) { resolve(false); return; }
 
         const blobUrl = URL.createObjectURL(blob);
         const w = preOpenedTab && !preOpenedTab.closed ? preOpenedTab : window.open('', '_blank');
-        if (!w) {
-          URL.revokeObjectURL(blobUrl);
-          resolve(false);
-          return;
-        }
+        if (!w) { URL.revokeObjectURL(blobUrl); resolve(false); return; }
 
         w.document.open();
         w.document.write(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>image</title></head><body style="margin:0;background:#fff;"><img src="${blobUrl}" alt="" style="display:block;width:100%;height:auto;user-select:none;-webkit-user-select:none;"></body></html>`);
         w.document.close();
-        setTimeout(() => {
-          try {
-            URL.revokeObjectURL(blobUrl);
-          } catch (_) {
-            // no-op
-          }
-        }, 60000);
+        setTimeout(() => { try { URL.revokeObjectURL(blobUrl); } catch (_) {} }, 60000);
         resolve(true);
       }, 'image/png');
     });
@@ -387,29 +524,18 @@
     const overlay = document.createElement('div');
     overlay.id = 'ios-save-sheet';
     overlay.style.cssText = [
-      'position:fixed',
-      'inset:0',
-      'z-index:9999',
-      'background:rgba(0,0,0,0.55)',
-      'display:flex',
-      'align-items:flex-end',
-      'justify-content:center',
-      'padding:16px',
-      'font-family:Arial,sans-serif'
+      'position:fixed', 'inset:0', 'z-index:9999',
+      'background:rgba(0,0,0,0.55)', 'display:flex',
+      'align-items:flex-end', 'justify-content:center',
+      'padding:16px', 'font-family:Arial,sans-serif'
     ].join(';');
 
     const sheet = document.createElement('div');
     sheet.style.cssText = [
-      'width:100%',
-      'max-width:460px',
-      'background:#0b1022',
-      'border:1px solid rgba(255,255,255,0.12)',
-      'border-radius:14px',
-      'padding:14px',
-      'color:#e8eaf6',
-      'display:flex',
-      'flex-direction:column',
-      'gap:10px'
+      'width:100%', 'max-width:460px', 'background:#0b1022',
+      'border:1px solid rgba(255,255,255,0.12)', 'border-radius:14px',
+      'padding:14px', 'color:#e8eaf6', 'display:flex',
+      'flex-direction:column', 'gap:10px'
     ].join(';');
 
     const text = document.createElement('div');
@@ -431,51 +557,36 @@
     btnClose.textContent = 'Luk';
     btnClose.style.cssText = 'padding:10px;border-radius:10px;border:none;background:rgba(255,255,255,0.08);color:#e8eaf6;font-size:13px;cursor:pointer;';
 
-    const closeSheet = () => {
-      overlay.remove();
-      resetDownloadButton(button);
-    };
+    const closeSheet = () => { overlay.remove(); resetDownloadButton(button); };
 
     btnShare.addEventListener('click', async () => {
       if (!navigator.share) {
         const tab = window.open('', '_blank');
-        if (!tab) {
-          alert('Tillad popups for at gemme billedet.');
-          return;
-        }
+        if (!tab) { alert('Tillad popups for at gemme billedet.'); return; }
         const ok = await openImageInNewTabFromCanvas(canvas, tab);
         if (!ok) alert('Tillad popups for at gemme billedet.');
         closeSheet();
         return;
       }
-
       try {
         await navigator.share({ files: [file], title: 'Optimeet card' });
         closeSheet();
       } catch (err) {
-        if (err.name === 'AbortError') {
-          closeSheet();
-          return;
-        }
+        if (err.name === 'AbortError') { closeSheet(); return; }
         alert('Deling mislykkedes. Tryk "Åbn billede i ny fane".');
       }
     });
 
     btnTab.addEventListener('click', async () => {
       const tab = window.open('', '_blank');
-      if (!tab) {
-        alert('Tillad popups for at gemme billedet.');
-        return;
-      }
+      if (!tab) { alert('Tillad popups for at gemme billedet.'); return; }
       const ok = await openImageInNewTabFromCanvas(canvas, tab);
       if (!ok) alert('Tillad popups for at gemme billedet.');
       closeSheet();
     });
 
     btnClose.addEventListener('click', closeSheet);
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) closeSheet();
-    });
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeSheet(); });
 
     if (!navigator.share) btnShare.style.display = 'none';
 
@@ -487,219 +598,98 @@
     document.body.appendChild(overlay);
   }
 
-function fixPhotoInClone(clone) {
-  if (!imgEl || !imgEl.src || !dom.photoInner) return Promise.resolve();
-
-  const clonedPhotoInner = clone.querySelector('#photo-inner');
-  if (!clonedPhotoInner) return Promise.resolve();
-
-  // Use the live element's dimensions — the clone may not have been reflowed yet
-  const photoW = dom.photoInner.offsetWidth;
-  const photoH = dom.photoInner.offsetHeight;
-
-  if (!photoW || !photoH) return Promise.resolve();
-
-  return new Promise((resolve) => {
-    const nativeImg = new Image();
-    nativeImg.onload = () => {
-      const canvas = document.createElement('canvas');
-      // Render at 2× for sharpness
-      const dpr = 2;
-      canvas.width = photoW * dpr;
-      canvas.height = photoH * dpr;
-      canvas.style.cssText = `position:absolute;top:0;left:0;width:${photoW}px;height:${photoH}px;`;
-
-      const ctx = canvas.getContext('2d');
-      ctx.scale(dpr, dpr);
-
-      const containScale =
-        Math.min(photoW / nativeImg.naturalWidth, photoH / nativeImg.naturalHeight) *
-        (zoom / 100);
-      const scaledW = nativeImg.naturalWidth * containScale;
-      const scaledH = nativeImg.naturalHeight * containScale;
-      const drawX = (photoW - scaledW) / 2 + imgX;
-      const drawY = (photoH - scaledH) / 2 + imgY;
-
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(0, 0, photoW, photoH);
-      ctx.clip();
-      ctx.drawImage(nativeImg, drawX, drawY, scaledW, scaledH);
-      ctx.restore();
-
-      const clonedImg = clonedPhotoInner.querySelector('img');
-      if (clonedImg) clonedImg.remove();
-
-      clonedPhotoInner.appendChild(canvas);
-      resolve();
-    };
-    nativeImg.onerror = resolve; // don't block if image fails
-    nativeImg.src = imgEl.src;
-  });
-}
-
-  function waitForDocumentFonts(timeoutMs = 3000) {
-    if (!document.fonts || !document.fonts.ready) return Promise.resolve();
-    return Promise.race([
-      document.fonts.ready.catch(() => {}),
-      new Promise((resolve) => setTimeout(resolve, timeoutMs))
-    ]);
-  }
-
-  function waitForImages(root, timeoutMs = 5000) {
-    const images = Array.from(root.querySelectorAll('img')).filter((img) => Boolean(img.src));
-    if (images.length === 0) return Promise.resolve();
-
-    return Promise.all(images.map((img) => new Promise((resolve) => {
-      if (img.complete && img.naturalWidth > 0) {
-        resolve();
-        return;
-      }
-
-      let settled = false;
-      const done = () => {
-        if (settled) return;
-        settled = true;
-        img.removeEventListener('load', done);
-        img.removeEventListener('error', done);
-        resolve();
-      };
-
-      img.addEventListener('load', done, { once: true });
-      img.addEventListener('error', done, { once: true });
-      setTimeout(done, timeoutMs);
-    })));
-  }
-
-  function nextFrame() {
-    return new Promise((resolve) => requestAnimationFrame(() => resolve()));
-  }
-
-  function canvasToBlob(canvas, mimeType) {
-    return new Promise((resolve) => {
-      if (!canvas || typeof canvas.toBlob !== 'function') {
-        resolve(null);
-        return;
-      }
-      canvas.toBlob((blob) => resolve(blob), mimeType);
-    });
-  }
-
-  function renderCardCanvas(target, scale) {
-    return html2canvas(target, {
-      width: CARD_WIDTH,
-      height: CARD_HEIGHT,
-      scale,
-      useCORS: true,
-      allowTaint: false,
-      backgroundColor: null,
-      logging: false,
-      imageTimeout: 15000
-    });
-  }
-
   function doDownload(btn) {
-  if (!btn || !dom.scaleContainer) return;
+    if (!btn || !dom.scaleContainer) return;
 
-  btn.textContent = '⏳ Genererer...';
-  btn.classList.add('loading');
+    btn.textContent = '⏳ Genererer...';
+    btn.classList.add('loading');
 
-  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
 
-  const wrapper = document.createElement('div');
-  wrapper.style.cssText = `position:fixed;left:-20000px;top:0;width:${CARD_WIDTH}px;height:${CARD_HEIGHT}px;overflow:hidden;`;
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = `position:fixed;left:-20000px;top:0;width:${CARD_WIDTH}px;height:${CARD_HEIGHT}px;overflow:hidden;`;
 
-  const clone = dom.scaleContainer.cloneNode(true);
-  clone.style.width = `${CARD_WIDTH}px`;
-  clone.style.height = `${CARD_HEIGHT}px`;
-  clone.style.boxSizing = 'border-box';
+    const clone = dom.scaleContainer.cloneNode(true);
+    clone.style.width = `${CARD_WIDTH}px`;
+    clone.style.height = `${CARD_HEIGHT}px`;
+    clone.style.boxSizing = 'border-box';
 
-  const clonedCardLive = clone.querySelector('#card-live');
-  if (clonedCardLive) {
-    clonedCardLive.style.cssText += `;position:absolute;top:0;left:0;width:${CARD_WIDTH}px;height:${CARD_HEIGHT}px;transform:scale(1);transform-origin:top left;overflow:hidden;`;
-  }
-
-  wrapper.appendChild(clone);
-  document.body.appendChild(wrapper);
-
-(async () => {
-  try {
-    // Vent på at wrapper er i DOM og browser har reflow'et
-    // Brug MutationObserver + rAF i stedet for timers der kan throttles
-    await new Promise((resolve) => {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          // Tving en reflow ved at læse en layout-property
-          void wrapper.offsetHeight;
-          resolve();
-        });
-      });
-    });
-
-    await fixPhotoInClone(clone);
-
-    // Endnu en reflow-flush efter photo er sat ind
-    await new Promise((resolve) => {
-      requestAnimationFrame(() => {
-        void clone.offsetHeight;
-        resolve();
-      });
-    });
-
-    await waitForDocumentFonts();
-    await waitForImages(clone);
-
-    // Tving én sidste layout-flush
-    void (clonedCardLive || clone).offsetHeight;
-
-    const target = clonedCardLive || clone;
-    const preferredScale = Math.max(2, Math.round(window.devicePixelRatio || 2));
-    let canvas;
-
-    try {
-      canvas = await renderCardCanvas(target, preferredScale);
-    } catch (firstErr) {
-      console.warn('Primary render failed, retrying at scale 1.', firstErr);
-      canvas = await renderCardCanvas(target, 1);
+    const clonedCardLive = clone.querySelector('#card-live');
+    if (clonedCardLive) {
+      clonedCardLive.style.cssText += `;position:absolute;top:0;left:0;width:${CARD_WIDTH}px;height:${CARD_HEIGHT}px;transform:scale(1);transform-origin:top left;overflow:hidden;`;
     }
 
-    if (wrapper.parentNode) document.body.removeChild(wrapper);
+    wrapper.appendChild(clone);
+    document.body.appendChild(wrapper);
 
-    const outputMime = 'image/png';
-    const rawName = dom.nameInput ? dom.nameInput.value.trim() : '';
-    const safeName = rawName.replace(/\s+/g, '-') || 'attendee';
-    const filename = `optimeet-card-${safeName}.png`;
+    (async () => {
+      try {
+        // Force reflow so clone is laid out before we read any dimensions
+        await waitForReflow();
 
-    if (isIOS) {
-      canvas.toBlob(async (blob) => {
-        if (!blob) { resetDownloadButton(btn); alert('Kunne ikke generere billede.'); return; }
-        const file = new File([blob], filename, { type: 'image/png' });
-        showIOSSaveOptions({ file, canvas, button: btn });
-      }, 'image/png');
-      return;
-    }
+        // Patch background to use base64 data URL — eliminates CORS fetch by html2canvas
+        fixBgInClone(clone);
 
-    try {
-      const blob = await canvasToBlob(canvas, outputMime);
-      if (blob) {
-        const url = URL.createObjectURL(blob);
-        createDownloadFallback({ href: url, filename, cleanup: () => URL.revokeObjectURL(url), button: btn });
-        return;
+        // Patch photo — draw it onto a canvas element so html2canvas doesn't re-fetch it
+        await fixPhotoInClone(clone);
+
+        // One more reflow after DOM mutations
+        await waitForReflow();
+
+        await waitForDocumentFonts();
+        await waitForImages(clone);
+
+        // Final layout flush
+        void (clonedCardLive || clone).offsetHeight;
+
+        const target = clonedCardLive || clone;
+        const preferredScale = Math.max(2, Math.round(window.devicePixelRatio || 2));
+        let canvas;
+
+        try {
+          canvas = await renderCardCanvas(target, preferredScale);
+        } catch (firstErr) {
+          console.warn('Primary render failed, retrying at scale 1.', firstErr);
+          canvas = await renderCardCanvas(target, 1);
+        }
+
+        if (wrapper.parentNode) document.body.removeChild(wrapper);
+
+        const outputMime = 'image/png';
+        const rawName = dom.nameInput ? dom.nameInput.value.trim() : '';
+        const safeName = rawName.replace(/\s+/g, '-') || 'attendee';
+        const filename = `optimeet-card-${safeName}.png`;
+
+        if (isIOS) {
+          canvas.toBlob(async (blob) => {
+            if (!blob) { resetDownloadButton(btn); alert('Kunne ikke generere billede.'); return; }
+            const file = new File([blob], filename, { type: 'image/png' });
+            showIOSSaveOptions({ file, canvas, button: btn });
+          }, 'image/png');
+          return;
+        }
+
+        try {
+          const blob = await canvasToBlob(canvas, outputMime);
+          if (blob) {
+            const url = URL.createObjectURL(blob);
+            createDownloadFallback({ href: url, filename, cleanup: () => URL.revokeObjectURL(url), button: btn });
+            return;
+          }
+          createDownloadFallback({ href: canvas.toDataURL(outputMime), filename, cleanup: null, button: btn });
+        } catch (err) {
+          console.error('Download error:', err);
+          resetDownloadButton(btn);
+          alert('Download mislykkedes pga. en sikkerhedsbegrænsning.');
+        }
+      } catch (err) {
+        if (wrapper.parentNode) document.body.removeChild(wrapper);
+        console.error('html2canvas error:', err);
+        resetDownloadButton(btn);
+        alert('Download mislykkedes. Prøv igen.');
       }
-      createDownloadFallback({ href: canvas.toDataURL(outputMime), filename, cleanup: null, button: btn });
-    } catch (err) {
-      console.error('Download error:', err);
-      resetDownloadButton(btn);
-      alert('Download mislykkedes pga. en sikkerhedsbegrænsning.');
-    }
-  } catch (err) {
-    if (wrapper.parentNode) document.body.removeChild(wrapper);
-    console.error('html2canvas error:', err);
-    resetDownloadButton(btn);
-    alert('Download mislykkedes. Prøv igen.');
+    })();
   }
-})();
-}
 
   function init() {
     scaleCard();
