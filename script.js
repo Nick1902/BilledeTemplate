@@ -604,6 +604,11 @@
     btn.textContent = '⏳ Genererer...';
     btn.classList.add('loading');
 
+    // Open a blank tab/window synchronously so later navigations or writes
+    // are treated as user-initiated and not blocked by popup/download blockers.
+    let preOpenedTab = null;
+    try { preOpenedTab = window.open('', '_blank'); } catch (e) { preOpenedTab = null; }
+
     const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
 
     const wrapper = document.createElement('div');
@@ -673,9 +678,26 @@
           const blob = await canvasToBlob(canvas, outputMime);
           if (blob) {
             const url = URL.createObjectURL(blob);
+
+            // If we successfully pre-opened a tab (synchronously), navigate it to the blob URL.
+            // This avoids popup/download blockers because the tab was opened during the
+            // original click event. If that fails, fall back to the hidden-anchor download.
+            try {
+              if (preOpenedTab && !preOpenedTab.closed) {
+                preOpenedTab.location.href = url;
+                resetDownloadButton(btn);
+                // Revoke after a short delay so the tab had time to load the blob
+                setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 60000);
+                return;
+              }
+            } catch (e) {
+              // ignore and fallback
+            }
+
             createDownloadFallback({ href: url, filename, cleanup: () => URL.revokeObjectURL(url), button: btn });
             return;
           }
+
           createDownloadFallback({ href: canvas.toDataURL(outputMime), filename, cleanup: null, button: btn });
         } catch (err) {
           console.error('Download error:', err);
