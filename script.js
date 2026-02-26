@@ -622,75 +622,83 @@ function fixPhotoInClone(clone) {
   wrapper.appendChild(clone);
   document.body.appendChild(wrapper);
 
-  (async () => {
+(async () => {
+  try {
+    // Vent på at wrapper er i DOM og browser har reflow'et
+    // Brug MutationObserver + rAF i stedet for timers der kan throttles
+    await new Promise((resolve) => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          // Tving en reflow ved at læse en layout-property
+          void wrapper.offsetHeight;
+          resolve();
+        });
+      });
+    });
+
+    await fixPhotoInClone(clone);
+
+    // Endnu en reflow-flush efter photo er sat ind
+    await new Promise((resolve) => {
+      requestAnimationFrame(() => {
+        void clone.offsetHeight;
+        resolve();
+      });
+    });
+
+    await waitForDocumentFonts();
+    await waitForImages(clone);
+
+    // Tving én sidste layout-flush
+    void (clonedCardLive || clone).offsetHeight;
+
+    const target = clonedCardLive || clone;
+    const preferredScale = Math.max(2, Math.round(window.devicePixelRatio || 2));
+    let canvas;
+
     try {
-      // Wait for the browser to reflow/paint the newly inserted clone
-      await nextFrame();
-      await nextFrame();
-      await new Promise((r) => setTimeout(r, 80));
+      canvas = await renderCardCanvas(target, preferredScale);
+    } catch (firstErr) {
+      console.warn('Primary render failed, retrying at scale 1.', firstErr);
+      canvas = await renderCardCanvas(target, 1);
+    }
 
-      await fixPhotoInClone(clone);
+    if (wrapper.parentNode) document.body.removeChild(wrapper);
 
-      await nextFrame();
-      await waitForDocumentFonts();
-      await waitForImages(clone);
+    const outputMime = 'image/png';
+    const rawName = dom.nameInput ? dom.nameInput.value.trim() : '';
+    const safeName = rawName.replace(/\s+/g, '-') || 'attendee';
+    const filename = `optimeet-card-${safeName}.png`;
 
-      // One more frame to ensure everything is composited
-      await nextFrame();
+    if (isIOS) {
+      canvas.toBlob(async (blob) => {
+        if (!blob) { resetDownloadButton(btn); alert('Kunne ikke generere billede.'); return; }
+        const file = new File([blob], filename, { type: 'image/png' });
+        showIOSSaveOptions({ file, canvas, button: btn });
+      }, 'image/png');
+      return;
+    }
 
-      const target = clonedCardLive || clone;
-      const preferredScale = Math.max(2, Math.round(window.devicePixelRatio || 2));
-      let canvas;
-
-      try {
-        canvas = await renderCardCanvas(target, preferredScale);
-      } catch (firstErr) {
-        console.warn('Primary render failed, retrying at scale 1.', firstErr);
-        canvas = await renderCardCanvas(target, 1);
-      }
-
-      if (wrapper.parentNode) document.body.removeChild(wrapper);
-
-      const outputMime = 'image/png';
-      const outputExt = 'png';
-      const rawName = dom.nameInput ? dom.nameInput.value.trim() : '';
-      const safeName = rawName.replace(/\s+/g, '-') || 'attendee';
-      const filename = `optimeet-card-${safeName}.${outputExt}`;
-
-      if (isIOS) {
-        canvas.toBlob(async (blob) => {
-          if (!blob) {
-            resetDownloadButton(btn);
-            alert('Kunne ikke generere billede.');
-            return;
-          }
-          const iosFilename = `optimeet-card-${safeName}.png`;
-          const file = new File([blob], iosFilename, { type: 'image/png' });
-          showIOSSaveOptions({ file, canvas, button: btn });
-        }, 'image/png');
+    try {
+      const blob = await canvasToBlob(canvas, outputMime);
+      if (blob) {
+        const url = URL.createObjectURL(blob);
+        createDownloadFallback({ href: url, filename, cleanup: () => URL.revokeObjectURL(url), button: btn });
         return;
       }
-
-      try {
-        const blob = await canvasToBlob(canvas, outputMime);
-        if (blob) {
-          const url = URL.createObjectURL(blob);
-          createDownloadFallback({ href: url, filename, cleanup: () => URL.revokeObjectURL(url), button: btn });
-          return;
-        }
-        createDownloadFallback({ href: canvas.toDataURL(outputMime), filename, cleanup: null, button: btn });
-      } catch (err) {
-        console.error('Download error:', err);
-        resetDownloadButton(btn);
-        alert('Download mislykkedes pga. en sikkerhedsbegrænsning.');
-      }
+      createDownloadFallback({ href: canvas.toDataURL(outputMime), filename, cleanup: null, button: btn });
     } catch (err) {
-      if (wrapper.parentNode) document.body.removeChild(wrapper);
-      console.error('html2canvas error:', err);
+      console.error('Download error:', err);
       resetDownloadButton(btn);
-      alert('Download mislykkedes. Prøv igen.');
+      alert('Download mislykkedes pga. en sikkerhedsbegrænsning.');
     }
-  })();
+  } catch (err) {
+    if (wrapper.parentNode) document.body.removeChild(wrapper);
+    console.error('html2canvas error:', err);
+    resetDownloadButton(btn);
+    alert('Download mislykkedes. Prøv igen.');
+  }
+})();
 }
 
   function init() {
