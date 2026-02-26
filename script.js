@@ -487,48 +487,56 @@
     document.body.appendChild(overlay);
   }
 
-  function fixPhotoInClone(clone) {
-    if (!imgEl || !imgEl.src || !dom.photoInner) return Promise.resolve();
+function fixPhotoInClone(clone) {
+  if (!imgEl || !imgEl.src || !dom.photoInner) return Promise.resolve();
 
-    const clonedPhotoInner = clone.querySelector('#photo-inner');
-    if (!clonedPhotoInner) return Promise.resolve();
+  const clonedPhotoInner = clone.querySelector('#photo-inner');
+  if (!clonedPhotoInner) return Promise.resolve();
 
-    const photoW = clonedPhotoInner.offsetWidth || dom.photoInner.offsetWidth;
-    const photoH = clonedPhotoInner.offsetHeight || dom.photoInner.offsetHeight;
+  // Use the live element's dimensions — the clone may not have been reflowed yet
+  const photoW = dom.photoInner.offsetWidth;
+  const photoH = dom.photoInner.offsetHeight;
 
-    return new Promise((resolve) => {
-      const nativeImg = new Image();
-      nativeImg.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = photoW;
-        canvas.height = photoH;
+  if (!photoW || !photoH) return Promise.resolve();
 
-        const ctx = canvas.getContext('2d');
-        const containScale = Math.min(photoW / nativeImg.naturalWidth, photoH / nativeImg.naturalHeight) * (zoom / 100);
-        const scaledW = nativeImg.naturalWidth * containScale;
-        const scaledH = nativeImg.naturalHeight * containScale;
-        const drawX = (photoW - scaledW) / 2 + imgX;
-        const drawY = (photoH - scaledH) / 2 + imgY;
+  return new Promise((resolve) => {
+    const nativeImg = new Image();
+    nativeImg.onload = () => {
+      const canvas = document.createElement('canvas');
+      // Render at 2× for sharpness
+      const dpr = 2;
+      canvas.width = photoW * dpr;
+      canvas.height = photoH * dpr;
+      canvas.style.cssText = `position:absolute;top:0;left:0;width:${photoW}px;height:${photoH}px;`;
 
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(0, 0, photoW, photoH);
-        ctx.clip();
-        ctx.drawImage(nativeImg, drawX, drawY, scaledW, scaledH);
-        ctx.restore();
+      const ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
 
-        canvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;';
+      const containScale =
+        Math.min(photoW / nativeImg.naturalWidth, photoH / nativeImg.naturalHeight) *
+        (zoom / 100);
+      const scaledW = nativeImg.naturalWidth * containScale;
+      const scaledH = nativeImg.naturalHeight * containScale;
+      const drawX = (photoW - scaledW) / 2 + imgX;
+      const drawY = (photoH - scaledH) / 2 + imgY;
 
-        const clonedImg = clonedPhotoInner.querySelector('img');
-        if (clonedImg) clonedImg.remove();
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, photoW, photoH);
+      ctx.clip();
+      ctx.drawImage(nativeImg, drawX, drawY, scaledW, scaledH);
+      ctx.restore();
 
-        clonedPhotoInner.appendChild(canvas);
-        resolve();
-      };
+      const clonedImg = clonedPhotoInner.querySelector('img');
+      if (clonedImg) clonedImg.remove();
 
-      nativeImg.src = imgEl.src;
-    });
-  }
+      clonedPhotoInner.appendChild(canvas);
+      resolve();
+    };
+    nativeImg.onerror = resolve; // don't block if image fails
+    nativeImg.src = imgEl.src;
+  });
+}
 
   function waitForDocumentFonts(timeoutMs = 3000) {
     if (!document.fonts || !document.fonts.ready) return Promise.resolve();
@@ -591,105 +599,99 @@
   }
 
   function doDownload(btn) {
-    if (!btn || !dom.scaleContainer) return;
+  if (!btn || !dom.scaleContainer) return;
 
-    btn.textContent = '⏳ Genererer...';
-    btn.classList.add('loading');
+  btn.textContent = '⏳ Genererer...';
+  btn.classList.add('loading');
 
-    const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
 
-    const wrapper = document.createElement('div');
-    wrapper.style.cssText = `position:fixed;left:-20000px;top:0;width:${CARD_WIDTH}px;height:${CARD_HEIGHT}px;overflow:hidden;`;
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = `position:fixed;left:-20000px;top:0;width:${CARD_WIDTH}px;height:${CARD_HEIGHT}px;overflow:hidden;`;
 
-    const clone = dom.scaleContainer.cloneNode(true);
-    clone.style.width = `${CARD_WIDTH}px`;
-    clone.style.height = `${CARD_HEIGHT}px`;
-    clone.style.boxSizing = 'border-box';
+  const clone = dom.scaleContainer.cloneNode(true);
+  clone.style.width = `${CARD_WIDTH}px`;
+  clone.style.height = `${CARD_HEIGHT}px`;
+  clone.style.boxSizing = 'border-box';
 
-    const clonedCardLive = clone.querySelector('#card-live');
-    if (clonedCardLive) {
-      clonedCardLive.style.cssText += `;position:absolute;top:0;left:0;width:${CARD_WIDTH}px;height:${CARD_HEIGHT}px;transform:scale(1);transform-origin:top left;overflow:hidden;`;
-    }
+  const clonedCardLive = clone.querySelector('#card-live');
+  if (clonedCardLive) {
+    clonedCardLive.style.cssText += `;position:absolute;top:0;left:0;width:${CARD_WIDTH}px;height:${CARD_HEIGHT}px;transform:scale(1);transform-origin:top left;overflow:hidden;`;
+  }
 
-    wrapper.appendChild(clone);
-    document.body.appendChild(wrapper);
+  wrapper.appendChild(clone);
+  document.body.appendChild(wrapper);
 
-    (async () => {
+  (async () => {
+    try {
+      // Wait for the browser to reflow/paint the newly inserted clone
+      await nextFrame();
+      await nextFrame();
+      await new Promise((r) => setTimeout(r, 80));
+
+      await fixPhotoInClone(clone);
+
+      await nextFrame();
+      await waitForDocumentFonts();
+      await waitForImages(clone);
+
+      // One more frame to ensure everything is composited
+      await nextFrame();
+
+      const target = clonedCardLive || clone;
+      const preferredScale = Math.max(2, Math.round(window.devicePixelRatio || 2));
+      let canvas;
+
       try {
-        await nextFrame();
-        await fixPhotoInClone(clone);
-        await nextFrame();
-        await waitForDocumentFonts();
-        await waitForImages(clone);
+        canvas = await renderCardCanvas(target, preferredScale);
+      } catch (firstErr) {
+        console.warn('Primary render failed, retrying at scale 1.', firstErr);
+        canvas = await renderCardCanvas(target, 1);
+      }
 
-        const target = clonedCardLive || clone;
-        const preferredScale = Math.max(2, Math.round(window.devicePixelRatio || 2));
-        let canvas;
+      if (wrapper.parentNode) document.body.removeChild(wrapper);
 
-        try {
-          canvas = await renderCardCanvas(target, preferredScale);
-        } catch (firstErr) {
-          console.warn('Primary html2canvas render failed, retrying with lower scale.', firstErr);
-          canvas = await renderCardCanvas(target, 1);
-        }
+      const outputMime = 'image/png';
+      const outputExt = 'png';
+      const rawName = dom.nameInput ? dom.nameInput.value.trim() : '';
+      const safeName = rawName.replace(/\s+/g, '-') || 'attendee';
+      const filename = `optimeet-card-${safeName}.${outputExt}`;
 
-        if (wrapper.parentNode) document.body.removeChild(wrapper);
-
-        const outputMime = 'image/png';
-        const outputExt = 'png';
-        const rawName = dom.nameInput ? dom.nameInput.value.trim() : '';
-        const safeName = rawName.replace(/\s+/g, '-') || 'attendee';
-        const filename = `optimeet-card-${safeName}.${outputExt}`;
-
-        if (isIOS) {
-          canvas.toBlob(async (blob) => {
-            if (!blob) {
-              resetDownloadButton(btn);
-              alert('Kunne ikke generere billede.');
-              return;
-            }
-
-            const iosRawName = dom.nameInput ? dom.nameInput.value.trim() : '';
-            const iosSafeName = iosRawName.replace(/\s+/g, '-') || 'attendee';
-            const iosFilename = `optimeet-card-${iosSafeName}.png`;
-            const file = new File([blob], iosFilename, { type: 'image/png' });
-            showIOSSaveOptions({ file, canvas, button: btn });
-          }, 'image/png');
-          return;
-        }
-
-        try {
-          const blob = await canvasToBlob(canvas, outputMime);
-          if (blob) {
-            const url = URL.createObjectURL(blob);
-            createDownloadFallback({
-              href: url,
-              filename,
-              cleanup: () => URL.revokeObjectURL(url),
-              button: btn
-            });
+      if (isIOS) {
+        canvas.toBlob(async (blob) => {
+          if (!blob) {
+            resetDownloadButton(btn);
+            alert('Kunne ikke generere billede.');
             return;
           }
-
-          createDownloadFallback({
-            href: canvas.toDataURL(outputMime),
-            filename,
-            cleanup: null,
-            button: btn
-          });
-        } catch (err) {
-          console.error('Download error:', err);
-          resetDownloadButton(btn);
-          alert('Download mislykkedes pga. en sikkerhedsbegrænsning.');
-        }
-      } catch (err) {
-        if (wrapper.parentNode) document.body.removeChild(wrapper);
-        console.error('html2canvas error:', err);
-        resetDownloadButton(btn);
-        alert('Download mislykkedes. Prøv igen.');
+          const iosFilename = `optimeet-card-${safeName}.png`;
+          const file = new File([blob], iosFilename, { type: 'image/png' });
+          showIOSSaveOptions({ file, canvas, button: btn });
+        }, 'image/png');
+        return;
       }
-    })();
-  }
+
+      try {
+        const blob = await canvasToBlob(canvas, outputMime);
+        if (blob) {
+          const url = URL.createObjectURL(blob);
+          createDownloadFallback({ href: url, filename, cleanup: () => URL.revokeObjectURL(url), button: btn });
+          return;
+        }
+        createDownloadFallback({ href: canvas.toDataURL(outputMime), filename, cleanup: null, button: btn });
+      } catch (err) {
+        console.error('Download error:', err);
+        resetDownloadButton(btn);
+        alert('Download mislykkedes pga. en sikkerhedsbegrænsning.');
+      }
+    } catch (err) {
+      if (wrapper.parentNode) document.body.removeChild(wrapper);
+      console.error('html2canvas error:', err);
+      resetDownloadButton(btn);
+      alert('Download mislykkedes. Prøv igen.');
+    }
+  })();
+}
 
   function init() {
     scaleCard();
