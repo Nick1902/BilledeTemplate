@@ -15,98 +15,334 @@
     cardLive: byId('card-live'),
     scaleContainer: byId('scale-container'),
     cardBg: byId('card-bg'),
-    titleInput: byId('title-input'),
-    subtitleInput: byId('subtitle-input'),
-    nameInput: byId('name-input'),
-    titleLive: byId('live-title'),
-    subtitleLive: byId('live-subtitle'),
-    liveName: byId('live-name'),
-    logoUpload: byId('logo-upload'),
-    liveLogo: byId('live-logo'),
-    logoRemoveBtn: byId('logo-remove-btn'),
-    logoHint: byId('logo-hint'),
-    photoUpload: byId('photo-upload'),
-    photoRemoveBtn: byId('photo-remove-btn'),
-    livePhoto: byId('live-photo'),
-    downloadBtn: byId('download-btn'),
-    downloadBtnIOS: byId('download-btn-ios'),
-    iosSaveModal: byId('ios-save-modal'),
-    iosCloseBtn: byId('ios-close-btn'),
-    iosOpenNewTabBtn: byId('ios-open-new-tab-btn'),
-    iosShareBtn: byId('ios-share-btn'),
-    iosDownloadBtn: byId('ios-download-btn'),
-    downloadTip: byId('download-tip'),
-    headerInput: byId('header-input'),
+
+    headerInput: byId('inp-header'),
     liveHeader: byId('live-header'),
-    headerColor: byId('header-color'),
-    nameSize: byId('name-size'),
-    headerSize: byId('header-size'),
-    titleSize: byId('title-size'),
-    subtitleSize: byId('subtitle-size'),
-    headerWeight: byId('header-weight'),
-    titleWeight: byId('title-weight'),
-    subtitleWeight: byId('subtitle-weight'),
-    nameWeight: byId('name-weight'),
-    headerLetterSpacing: byId('header-letter-spacing'),
-    titleLetterSpacing: byId('title-letter-spacing'),
-    subtitleLetterSpacing: byId('subtitle-letter-spacing'),
-    nameLetterSpacing: byId('name-letter-spacing'),
-    headerLineHeight: byId('header-line-height'),
-    titleLineHeight: byId('title-line-height'),
-    subtitleLineHeight: byId('subtitle-line-height'),
-    nameLineHeight: byId('name-line-height'),
-    headerUppercase: byId('header-uppercase'),
-    titleUppercase: byId('title-uppercase'),
-    subtitleUppercase: byId('subtitle-uppercase'),
-    nameUppercase: byId('name-uppercase'),
-    headerAlign: byId('header-align'),
-    titleAlign: byId('title-align'),
-    subtitleAlign: byId('subtitle-align'),
-    nameAlign: byId('name-align')
+    nameInput: byId('inp-name'),
+    liveName: byId('live-name'),
+
+    photoInner: byId('photo-inner'),
+    photoPlaceholder: byId('photo-placeholder'),
+    uploadArea: byId('upload-area'),
+    fileInput: byId('file-input'),
+    zoomSection: byId('zoom-section'),
+    zoomSlider: byId('zoom-slider'),
+    zoomVal: byId('zoom-val'),
+    floatingZoom: byId('floating-zoom'),
+    floatingZoomSlider: byId('floating-zoom-slider'),
+    floatingZoomVal: byId('floating-zoom-val'),
+
+    companyUploadArea: byId('company-upload-area'),
+    fileCompanyInput: byId('file-company-input'),
+    bannerCompanyImg: byId('banner-company-img'),
+    bannerLogoPlaceholder: byId('banner-logo-placeholder'),
+    logoSizeSection: byId('logo-size-section'),
+    logoSizeSlider: byId('logo-size-slider'),
+    logoSizeVal: byId('logo-size-val'),
+    floatingLogoSizeSection: byId('floating-logo-size'),
+    floatingLogoSizeSlider: byId('floating-logo-size-slider'),
+    floatingLogoSizeVal: byId('floating-logo-size-val'),
+
+    btnDesktop: byId('btn-download'),
+    btnMobile: byId('btn-download-mobile')
   };
 
-  let uploadedLogoUrl = null;
-  let uploadedPhotoUrl = null;
+  let imgEl = null;
+  let dragActive = false;
+  let lastX = 0;
+  let lastY = 0;
+  let imgX = 0;
+  let imgY = 0;
+  let zoom = 100;
+  let logoScale = 100;
+  let photoDragBound = false;
   let lastViewportWidth = window.innerWidth;
 
-  const nextFrame = () =>
-    new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  window.switchTab = (tab) => {
+    if (!dom.editPane || !dom.previewPane || !dom.tabEditBtn || !dom.tabPreviewBtn) return;
 
-  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const showEdit = tab === 'edit';
+    dom.editPane.classList.toggle('tab-active', showEdit);
+    dom.previewPane.classList.toggle('tab-active', !showEdit);
+    dom.tabEditBtn.classList.toggle('active', showEdit);
+    dom.tabPreviewBtn.classList.toggle('active', !showEdit);
+
+    if (!showEdit) scaleCard();
+  };
+
+  function scaleCard() {
+    if (!dom.scaleContainer || !dom.cardLive) return;
+    const scale = dom.scaleContainer.offsetWidth / CARD_WIDTH;
+    dom.cardLive.style.transform = `scale(${scale})`;
+  }
+
+  function bindLiveText(input, target) {
+    if (!input || !target) return;
+    input.addEventListener('input', () => {
+      target.textContent = input.value;
+    });
+  }
+
+  function updateHeaderPreview() {
+    if (!dom.headerInput || !dom.liveHeader) return;
+
+    const value = dom.headerInput.value || '';
+    const trimmed = value.trim();
+    const wordCount = trimmed ? trimmed.split(/\s+/).length : 0;
+    const charCount = value.replace(/\s+/g, '').length;
+
+    let fontSize = 50;
+    if (wordCount > 8) fontSize = 46;
+    if (wordCount > 12) fontSize = 42;
+    if (wordCount > 16) fontSize = 38;
+    if (wordCount > 20) fontSize = 34;
+    if (charCount > 70) fontSize = Math.min(fontSize, 36);
+    if (charCount > 90) fontSize = Math.min(fontSize, 32);
+
+    dom.liveHeader.textContent = value;
+    dom.liveHeader.style.fontSize = `${fontSize}px`;
+    dom.liveHeader.style.lineHeight = fontSize <= 36 ? '1.08' : '1.04';
+  }
+
+  function setUploadAreaHighlight(area, active) {
+    if (!area) return;
+    area.style.borderColor = active ? 'var(--accent)' : '';
+  }
+
+  function setupUploadArea({ area, input, onFile }) {
+    if (!area || !input) return;
+
+    area.addEventListener('click', () => input.click());
+
+    area.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      setUploadAreaHighlight(area, true);
+    });
+
+    area.addEventListener('dragleave', () => {
+      setUploadAreaHighlight(area, false);
+    });
+
+    area.addEventListener('drop', (e) => {
+      e.preventDefault();
+      setUploadAreaHighlight(area, false);
+      const file = e.dataTransfer?.files?.[0];
+      if (file && file.type.startsWith('image/')) onFile(file);
+    });
+
+    input.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (file) onFile(file);
+    });
+  }
+
+  function applyTransform() {
+    if (!imgEl) return;
+    const scale = zoom / 100;
+    imgEl.style.transform = `translate(${imgX}px, ${imgY}px) scale(${scale})`;
+    imgEl.style.objectFit = 'contain';
+  }
+
+  function startDrag(e) {
+    e.preventDefault();
+    dragActive = true;
+    lastX = e.clientX;
+    lastY = e.clientY;
+    document.addEventListener('mousemove', onDrag);
+    document.addEventListener('mouseup', stopDrag);
+    if (imgEl) imgEl.style.cursor = 'grabbing';
+  }
+
+  function startDragTouch(e) {
+    if (e.touches.length !== 1) return;
+    e.preventDefault();
+    dragActive = true;
+    lastX = e.touches[0].clientX;
+    lastY = e.touches[0].clientY;
+    document.addEventListener('touchmove', onDragTouch, { passive: false });
+    document.addEventListener('touchend', stopDrag);
+  }
+
+  function onDrag(e) {
+    if (!dragActive || !dom.scaleContainer) return;
+    const scale = dom.scaleContainer.offsetWidth / CARD_WIDTH;
+    imgX += (e.clientX - lastX) / scale;
+    imgY += (e.clientY - lastY) / scale;
+    lastX = e.clientX;
+    lastY = e.clientY;
+    applyTransform();
+  }
+
+  function onDragTouch(e) {
+    if (!dragActive || e.touches.length !== 1 || !dom.scaleContainer) return;
+    e.preventDefault();
+    const scale = dom.scaleContainer.offsetWidth / CARD_WIDTH;
+    imgX += (e.touches[0].clientX - lastX) / scale;
+    imgY += (e.touches[0].clientY - lastY) / scale;
+    lastX = e.touches[0].clientX;
+    lastY = e.touches[0].clientY;
+    applyTransform();
+  }
+
+  function stopDrag() {
+    dragActive = false;
+    document.removeEventListener('mousemove', onDrag);
+    document.removeEventListener('mouseup', stopDrag);
+    document.removeEventListener('touchmove', onDragTouch);
+    document.removeEventListener('touchend', stopDrag);
+    if (imgEl) imgEl.style.cursor = 'grab';
+  }
+
+  function bindPhotoDragHandlers() {
+    if (!dom.photoInner || photoDragBound) return;
+    dom.photoInner.addEventListener('mousedown', startDrag);
+    dom.photoInner.addEventListener('touchstart', startDragTouch, { passive: false });
+    photoDragBound = true;
+  }
+
+  function updateZoom(value) {
+    zoom = parseInt(value, 10) || 100;
+    const zoomText = `${zoom}%`;
+
+    if (dom.zoomVal) dom.zoomVal.textContent = zoomText;
+    if (dom.floatingZoomVal) dom.floatingZoomVal.textContent = zoomText;
+    if (dom.zoomSlider) dom.zoomSlider.value = String(zoom);
+    if (dom.floatingZoomSlider) dom.floatingZoomSlider.value = String(zoom);
+
+    applyTransform();
+  }
+
+  function loadImage(file) {
+    if (!dom.photoInner || !dom.photoPlaceholder) return;
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      dom.photoPlaceholder.style.display = 'none';
+
+      if (imgEl) imgEl.remove();
+      imgEl = document.createElement('img');
+      imgEl.src = ev.target?.result;
+      imgEl.style.cssText = 'position:absolute;width:100%;height:100%;object-fit:cover;object-position:center;cursor:grab;user-select:none;-webkit-user-drag:none;';
+
+      imgX = 0;
+      imgY = 0;
+      zoom = 100;
+      updateZoom(100);
+      applyTransform();
+
+      dom.photoInner.appendChild(imgEl);
+
+      if (dom.zoomSection) dom.zoomSection.style.display = 'block';
+      if (dom.floatingZoom) dom.floatingZoom.classList.add('active');
+      if (dom.uploadArea) {
+        const text = dom.uploadArea.querySelector('p');
+        if (text) text.innerHTML = '<strong>Klik for at skifte foto</strong>';
+      }
+
+      bindPhotoDragHandlers();
+    };
+
+    reader.readAsDataURL(file);
+  }
+
+  function applyLogoSize() {
+    if (!dom.bannerCompanyImg) return;
+
+    const maxWidth = Math.round(160 * (logoScale / 100));
+    const maxHeight = Math.round(100 * (logoScale / 100));
+
+    dom.bannerCompanyImg.style.maxWidth = `${maxWidth}px`;
+    dom.bannerCompanyImg.style.maxHeight = `${maxHeight}px`;
+
+    if (dom.logoSizeSlider) dom.logoSizeSlider.value = String(logoScale);
+    if (dom.logoSizeVal) dom.logoSizeVal.textContent = `${logoScale}%`;
+    if (dom.floatingLogoSizeSlider) dom.floatingLogoSizeSlider.value = String(logoScale);
+    if (dom.floatingLogoSizeVal) dom.floatingLogoSizeVal.textContent = `${logoScale}%`;
+  }
+
+  function loadCompanyImage(file) {
+    const probeUrl = URL.createObjectURL(file);
+    const probeImg = new Image();
+
+    probeImg.onload = () => {
+      const tooLarge = probeImg.naturalWidth > MAX_LOGO_UPLOAD_WIDTH || probeImg.naturalHeight > MAX_LOGO_UPLOAD_HEIGHT;
+      URL.revokeObjectURL(probeUrl);
+
+      if (tooLarge) {
+        alert(`Logoet er for stort (${probeImg.naturalWidth}x${probeImg.naturalHeight}px). Maks er ${MAX_LOGO_UPLOAD_WIDTH}x${MAX_LOGO_UPLOAD_HEIGHT}px.`);
+        if (dom.fileCompanyInput) dom.fileCompanyInput.value = '';
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        if (dom.bannerCompanyImg) {
+          dom.bannerCompanyImg.src = ev.target?.result;
+          dom.bannerCompanyImg.style.display = 'block';
+        }
+
+        if (dom.bannerLogoPlaceholder) dom.bannerLogoPlaceholder.style.display = 'none';
+
+        logoScale = 100;
+        applyLogoSize();
+
+        if (dom.logoSizeSection) dom.logoSizeSection.style.display = 'block';
+        if (dom.floatingLogoSizeSection) dom.floatingLogoSizeSection.classList.add('active');
+
+        if (dom.companyUploadArea) {
+          const text = dom.companyUploadArea.querySelector('p');
+          if (text) text.innerHTML = '<strong>Klik for at ændre logo</strong>';
+        }
+      };
+
+      reader.readAsDataURL(file);
+    };
+
+    probeImg.onerror = () => {
+      URL.revokeObjectURL(probeUrl);
+      alert('Kunne ikke læse logo-filen.');
+      if (dom.fileCompanyInput) dom.fileCompanyInput.value = '';
+    };
+
+    probeImg.src = probeUrl;
+  }
+
+  function setBackgroundImage() {
+    if (!dom.cardBg || !BG_IMAGE_URL) return;
+    dom.cardBg.style.backgroundImage = `
+      linear-gradient(160deg, rgba(10,14,50,0.72) 0%, rgba(20,10,60,0.55) 50%, rgba(5,5,20,0.85) 100%),
+      url('${BG_IMAGE_URL}')
+    `;
+    dom.cardBg.style.backgroundSize = 'cover';
+    dom.cardBg.style.backgroundPosition = 'center';
+  }
 
   function resetDownloadButton(btn) {
     if (!btn) return;
-    btn.textContent = '⬇️ Download (PNG)';
+    const originalHtml = btn.dataset.defaultHtml;
+    if (originalHtml) {
+      btn.innerHTML = originalHtml;
+    } else {
+      btn.textContent = '⬇ Hent billede';
+    }
     btn.classList.remove('loading');
   }
 
+
   function createDownloadFallback({ href, filename, cleanup, button }) {
     const link = document.createElement('a');
+    link.style.display = 'none';
     link.href = href;
     link.download = filename;
-    link.rel = 'noopener';
-    link.style.display = 'none';
     document.body.appendChild(link);
-
-    // Some browsers are stricter about dispatchEvent; keep link.click too:
-    try {
-      link.click();
-    } catch (_) {
-      try {
-        link.dispatchEvent(
-          new MouseEvent('click', {
-            view: window,
-            bubbles: true,
-            cancelable: true
-          })
-        );
-      } catch (__) {}
-    }
+    link.click();
 
     setTimeout(() => {
       try {
-        document.body.removeChild(link);
-      } catch (_) {}
+        link.remove();
+      } catch (_) {
+        // no-op
+      }
       if (cleanup) cleanup();
     }, 1000);
 
@@ -144,437 +380,207 @@
     });
   }
 
-  // Desktop-safe download: open a tab synchronously (user gesture), then populate it with
-  // the generated image and a "Download" link the user can click.
-  function openImageWithDownloadLinkFromCanvas(canvas, filename, preOpenedTab = null) {
+  function showIOSSaveOptions({ file, canvas, button }) {
+    const existing = byId('ios-save-sheet');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'ios-save-sheet';
+    overlay.style.cssText = [
+      'position:fixed',
+      'inset:0',
+      'z-index:9999',
+      'background:rgba(0,0,0,0.55)',
+      'display:flex',
+      'align-items:flex-end',
+      'justify-content:center',
+      'padding:16px',
+      'font-family:Arial,sans-serif'
+    ].join(';');
+
+    const sheet = document.createElement('div');
+    sheet.style.cssText = [
+      'width:100%',
+      'max-width:460px',
+      'background:#0b1022',
+      'border:1px solid rgba(255,255,255,0.12)',
+      'border-radius:14px',
+      'padding:14px',
+      'color:#e8eaf6',
+      'display:flex',
+      'flex-direction:column',
+      'gap:10px'
+    ].join(';');
+
+    const text = document.createElement('div');
+    text.textContent = 'Vælg hvordan du vil gemme billedet';
+    text.style.cssText = 'font-size:14px;opacity:0.95;padding:2px 2px 6px;';
+
+    const btnShare = document.createElement('button');
+    btnShare.type = 'button';
+    btnShare.textContent = 'Gem billede (anbefalet)';
+    btnShare.style.cssText = 'padding:12px;border-radius:10px;border:none;background:#4f7aff;color:#fff;font-weight:700;font-size:14px;cursor:pointer;';
+
+    const btnTab = document.createElement('button');
+    btnTab.type = 'button';
+    btnTab.textContent = 'Åbn billede i ny fane';
+    btnTab.style.cssText = 'padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.22);background:transparent;color:#e8eaf6;font-weight:700;font-size:14px;cursor:pointer;';
+
+    const btnClose = document.createElement('button');
+    btnClose.type = 'button';
+    btnClose.textContent = 'Luk';
+    btnClose.style.cssText = 'padding:10px;border-radius:10px;border:none;background:rgba(255,255,255,0.08);color:#e8eaf6;font-size:13px;cursor:pointer;';
+
+    const closeSheet = () => {
+      overlay.remove();
+      resetDownloadButton(button);
+    };
+
+    btnShare.addEventListener('click', async () => {
+      if (!navigator.share) {
+        const tab = window.open('', '_blank');
+        if (!tab) {
+          alert('Tillad popups for at gemme billedet.');
+          return;
+        }
+        const ok = await openImageInNewTabFromCanvas(canvas, tab);
+        if (!ok) alert('Tillad popups for at gemme billedet.');
+        closeSheet();
+        return;
+      }
+
+      try {
+        await navigator.share({ files: [file], title: 'Optimeet card' });
+        closeSheet();
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          closeSheet();
+          return;
+        }
+        alert('Deling mislykkedes. Tryk "Åbn billede i ny fane".');
+      }
+    });
+
+    btnTab.addEventListener('click', async () => {
+      const tab = window.open('', '_blank');
+      if (!tab) {
+        alert('Tillad popups for at gemme billedet.');
+        return;
+      }
+      const ok = await openImageInNewTabFromCanvas(canvas, tab);
+      if (!ok) alert('Tillad popups for at gemme billedet.');
+      closeSheet();
+    });
+
+    btnClose.addEventListener('click', closeSheet);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeSheet();
+    });
+
+    if (!navigator.share) btnShare.style.display = 'none';
+
+    sheet.appendChild(text);
+    sheet.appendChild(btnShare);
+    sheet.appendChild(btnTab);
+    sheet.appendChild(btnClose);
+    overlay.appendChild(sheet);
+    document.body.appendChild(overlay);
+  }
+
+  function fixPhotoInClone(clone) {
+    if (!imgEl || !imgEl.src || !dom.photoInner) return Promise.resolve();
+
+    const clonedPhotoInner = clone.querySelector('#photo-inner');
+    if (!clonedPhotoInner) return Promise.resolve();
+
+    const photoW = clonedPhotoInner.offsetWidth || dom.photoInner.offsetWidth;
+    const photoH = clonedPhotoInner.offsetHeight || dom.photoInner.offsetHeight;
+
     return new Promise((resolve) => {
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          resolve(false);
-          return;
-        }
+      const nativeImg = new Image();
+      nativeImg.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = photoW;
+        canvas.height = photoH;
 
-        const blobUrl = URL.createObjectURL(blob);
-        const w = preOpenedTab && !preOpenedTab.closed ? preOpenedTab : window.open('', '_blank');
-        if (!w) {
-          URL.revokeObjectURL(blobUrl);
-          resolve(false);
-          return;
-        }
+        const ctx = canvas.getContext('2d');
+        const containScale = Math.min(photoW / nativeImg.naturalWidth, photoH / nativeImg.naturalHeight) * (zoom / 100);
+        const scaledW = nativeImg.naturalWidth * containScale;
+        const scaledH = nativeImg.naturalHeight * containScale;
+        const drawX = (photoW - scaledW) / 2 + imgX;
+        const drawY = (photoH - scaledH) / 2 + imgY;
 
-        const safeTitle = (filename || 'image').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, photoW, photoH);
+        ctx.clip();
+        ctx.drawImage(nativeImg, drawX, drawY, scaledW, scaledH);
+        ctx.restore();
 
-        w.document.open();
-        w.document.write(`<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>${safeTitle}</title>
-</head>
-<body style="margin:0;font-family:system-ui;background:#0b0b0b;color:#fff;">
-  <div style="position:sticky;top:0;padding:12px;background:rgba(0,0,0,.75);backdrop-filter:blur(8px);display:flex;gap:12px;align-items:center;">
-    <a id="dl" style="display:inline-block;padding:10px 14px;border-radius:10px;background:#4f7aff;color:#fff;text-decoration:none;font-weight:700;">
-      Download PNG
-    </a>
-    <span style="opacity:.8;font-size:13px;">
-      If it doesn’t download, right-click the image and choose “Save image as…”
-    </span>
-  </div>
-  <img src="${blobUrl}" alt="" style="display:block;width:100%;height:auto;user-select:none;-webkit-user-select:none;">
-  <script>
-    const a = document.getElementById('dl');
-    a.href = "${blobUrl}";
-    a.download = ${JSON.stringify(filename || 'image.png')};
-  </script>
-</body>
-</html>`);
-        w.document.close();
+        canvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;';
 
-        // Cleanup later
-        setTimeout(() => {
-          try { URL.revokeObjectURL(blobUrl); } catch (_) {}
-        }, 60000);
+        const clonedImg = clonedPhotoInner.querySelector('img');
+        if (clonedImg) clonedImg.remove();
 
-        resolve(true);
-      }, 'image/png');
+        clonedPhotoInner.appendChild(canvas);
+        resolve();
+      };
+
+      nativeImg.src = imgEl.src;
     });
   }
 
-  function showIOSSaveOptions({ file, canvas, button }) {
-    if (!dom.iosSaveModal) {
-      resetDownloadButton(button);
-      alert('iOS modal mangler i HTML.');
-      return;
-    }
+  function waitForDocumentFonts(timeoutMs = 3000) {
+    if (!document.fonts || !document.fonts.ready) return Promise.resolve();
+    return Promise.race([
+      document.fonts.ready.catch(() => {}),
+      new Promise((resolve) => setTimeout(resolve, timeoutMs))
+    ]);
+  }
 
-    dom.iosSaveModal.classList.add('open');
+  function waitForImages(root, timeoutMs = 5000) {
+    const images = Array.from(root.querySelectorAll('img')).filter((img) => Boolean(img.src));
+    if (images.length === 0) return Promise.resolve();
 
-    const close = () => {
-      dom.iosSaveModal.classList.remove('open');
-    };
+    return Promise.all(images.map((img) => new Promise((resolve) => {
+      if (img.complete && img.naturalWidth > 0) {
+        resolve();
+        return;
+      }
 
-    const cleanupListeners = () => {
-      if (dom.iosCloseBtn) dom.iosCloseBtn.onclick = null;
-      if (dom.iosOpenNewTabBtn) dom.iosOpenNewTabBtn.onclick = null;
-      if (dom.iosShareBtn) dom.iosShareBtn.onclick = null;
-      if (dom.iosDownloadBtn) dom.iosDownloadBtn.onclick = null;
-    };
-
-    const finish = () => {
-      cleanupListeners();
-      close();
-      resetDownloadButton(button);
-    };
-
-    if (dom.iosCloseBtn) {
-      dom.iosCloseBtn.onclick = () => finish();
-    }
-
-    if (dom.iosOpenNewTabBtn) {
-      dom.iosOpenNewTabBtn.onclick = async () => {
-        const ok = await openImageInNewTabFromCanvas(canvas);
-        if (!ok) alert('Pop-up blev blokeret. Tillad pop-ups og prøv igen.');
-        finish();
+      let settled = false;
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        img.removeEventListener('load', done);
+        img.removeEventListener('error', done);
+        resolve();
       };
-    }
 
-    if (dom.iosShareBtn) {
-      dom.iosShareBtn.onclick = async () => {
-        try {
-          if (!navigator.canShare || !navigator.canShare({ files: [file] })) {
-            alert('Deling er ikke understøttet på denne enhed.');
-            return;
-          }
-          await navigator.share({
-            files: [file],
-            title: file.name,
-            text: 'Optimeet badge'
-          });
-          finish();
-        } catch (err) {
-          console.warn('Share canceled or failed', err);
-          // Let user try other option without closing automatically
-        }
-      };
-    }
-
-    if (dom.iosDownloadBtn) {
-      dom.iosDownloadBtn.onclick = async () => {
-        try {
-          const url = URL.createObjectURL(file);
-          createDownloadFallback({
-            href: url,
-            filename: file.name,
-            cleanup: () => URL.revokeObjectURL(url),
-            button
-          });
-          finish();
-        } catch (err) {
-          console.error(err);
-          alert('Kunne ikke starte download.');
-        }
-      };
-    }
+      img.addEventListener('load', done, { once: true });
+      img.addEventListener('error', done, { once: true });
+      setTimeout(done, timeoutMs);
+    })));
   }
 
-  function switchTab(name) {
-    if (!dom.editPane || !dom.previewPane) return;
-
-    const showPreview = name === 'preview';
-
-    dom.editPane.hidden = showPreview;
-    dom.previewPane.hidden = !showPreview;
-
-    if (dom.tabEditBtn) dom.tabEditBtn.classList.toggle('active', !showPreview);
-    if (dom.tabPreviewBtn) dom.tabPreviewBtn.classList.toggle('active', showPreview);
-
-    scaleCard();
+  function nextFrame() {
+    return new Promise((resolve) => requestAnimationFrame(() => resolve()));
   }
 
-  function scaleCard() {
-    if (!dom.scaleContainer) return;
-
-    const viewportW = window.innerWidth;
-    const viewportH = window.innerHeight;
-
-    const padding = 28;
-    const maxW = viewportW - padding * 2;
-    const maxH = viewportH - 240;
-
-    const scaleX = maxW / CARD_WIDTH;
-    const scaleY = maxH / CARD_HEIGHT;
-    const scale = Math.min(scaleX, scaleY, 1);
-
-    dom.scaleContainer.style.transform = `scale(${scale})`;
-    dom.scaleContainer.style.transformOrigin = 'top center';
-  }
-
-  function bindLiveText(input, output) {
-    if (!input || !output) return;
-    const sync = () => {
-      output.textContent = input.value || '';
-    };
-    input.addEventListener('input', sync);
-    sync();
-  }
-
-  function bindRange(input, outputEl, cssVar, suffix = '') {
-    if (!input || !outputEl) return;
-    const sync = () => {
-      const value = input.value;
-      outputEl.textContent = `${value}${suffix}`;
-      document.documentElement.style.setProperty(cssVar, `${value}${suffix}`);
-    };
-    input.addEventListener('input', sync);
-    sync();
-  }
-
-  function bindSelect(input, cssVar) {
-    if (!input) return;
-    const sync = () => {
-      document.documentElement.style.setProperty(cssVar, input.value);
-    };
-    input.addEventListener('change', sync);
-    sync();
-  }
-
-  function bindToggle(input, cssVar, onVal, offVal) {
-    if (!input) return;
-    const sync = () => {
-      document.documentElement.style.setProperty(cssVar, input.checked ? onVal : offVal);
-    };
-    input.addEventListener('change', sync);
-    sync();
-  }
-
-  function loadImageFromFile(file, maxW, maxH) {
-    return new Promise((resolve, reject) => {
-      if (!file) {
+  function canvasToBlob(canvas, mimeType) {
+    return new Promise((resolve) => {
+      if (!canvas || typeof canvas.toBlob !== 'function') {
         resolve(null);
         return;
       }
-      const img = new Image();
-      const url = URL.createObjectURL(file);
-      img.onload = () => {
-        const w = img.naturalWidth;
-        const h = img.naturalHeight;
-        const scale = Math.min(1, maxW / w, maxH / h);
-        const outW = Math.round(w * scale);
-        const outH = Math.round(h * scale);
-
-        const canvas = document.createElement('canvas');
-        canvas.width = outW;
-        canvas.height = outH;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, outW, outH);
-
-        canvas.toBlob(
-          (blob) => {
-            URL.revokeObjectURL(url);
-            if (!blob) {
-              reject(new Error('Blob conversion failed'));
-              return;
-            }
-            resolve({
-              blob,
-              url: URL.createObjectURL(blob)
-            });
-          },
-          'image/png',
-          0.95
-        );
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(url);
-        reject(new Error('Image load failed'));
-      };
-      img.src = url;
+      canvas.toBlob((blob) => resolve(blob), mimeType);
     });
   }
 
-  async function handleLogoUpload(file) {
-    try {
-      const result = await loadImageFromFile(file, MAX_LOGO_UPLOAD_WIDTH, MAX_LOGO_UPLOAD_HEIGHT);
-      if (!result) return;
-
-      if (uploadedLogoUrl) URL.revokeObjectURL(uploadedLogoUrl);
-      uploadedLogoUrl = result.url;
-
-      if (dom.liveLogo) {
-        dom.liveLogo.src = uploadedLogoUrl;
-        dom.liveLogo.classList.remove('hidden');
-      }
-      if (dom.logoRemoveBtn) dom.logoRemoveBtn.hidden = false;
-      if (dom.logoHint) dom.logoHint.hidden = true;
-    } catch (err) {
-      console.error(err);
-      alert('Kunne ikke indlæse logo.');
-    }
-  }
-
-  function removeLogo() {
-    if (uploadedLogoUrl) {
-      URL.revokeObjectURL(uploadedLogoUrl);
-      uploadedLogoUrl = null;
-    }
-    if (dom.liveLogo) {
-      dom.liveLogo.src = '';
-      dom.liveLogo.classList.add('hidden');
-    }
-    if (dom.logoRemoveBtn) dom.logoRemoveBtn.hidden = true;
-    if (dom.logoHint) dom.logoHint.hidden = false;
-    if (dom.logoUpload) dom.logoUpload.value = '';
-  }
-
-  async function handlePhotoUpload(file) {
-    try {
-      const result = await loadImageFromFile(file, 2000, 2000);
-      if (!result) return;
-
-      if (uploadedPhotoUrl) URL.revokeObjectURL(uploadedPhotoUrl);
-      uploadedPhotoUrl = result.url;
-
-      if (dom.livePhoto) {
-        dom.livePhoto.style.backgroundImage = `url(${uploadedPhotoUrl})`;
-        dom.livePhoto.classList.remove('empty');
-      }
-      if (dom.photoRemoveBtn) dom.photoRemoveBtn.hidden = false;
-    } catch (err) {
-      console.error(err);
-      alert('Kunne ikke indlæse billede.');
-    }
-  }
-
-  function removePhoto() {
-    if (uploadedPhotoUrl) {
-      URL.revokeObjectURL(uploadedPhotoUrl);
-      uploadedPhotoUrl = null;
-    }
-    if (dom.livePhoto) {
-      dom.livePhoto.style.backgroundImage = '';
-      dom.livePhoto.classList.add('empty');
-    }
-    if (dom.photoRemoveBtn) dom.photoRemoveBtn.hidden = true;
-    if (dom.photoUpload) dom.photoUpload.value = '';
-  }
-
-  function waitForDocumentFonts(timeoutMs = 6000) {
-    if (!document.fonts || !document.fonts.ready) return Promise.resolve();
-    let timer;
-    const timeout = new Promise((resolve) => {
-      timer = setTimeout(resolve, timeoutMs);
-    });
-    return Promise.race([document.fonts.ready, timeout]).finally(() => clearTimeout(timer));
-  }
-
-  function waitForImages(root, timeoutMs = 8000) {
-    const imgs = Array.from(root.querySelectorAll('img'));
-    if (!imgs.length) return Promise.resolve();
-
-    let timer;
-    const timeout = new Promise((resolve) => {
-      timer = setTimeout(resolve, timeoutMs);
-    });
-
-    const all = Promise.all(
-      imgs.map((img) => {
-        if (img.complete && img.naturalWidth > 0) return Promise.resolve();
-        return new Promise((resolve) => {
-          img.onload = () => resolve();
-          img.onerror = () => resolve();
-        });
-      })
-    );
-
-    return Promise.race([all, timeout]).finally(() => clearTimeout(timer));
-  }
-
-  // Ensure background-image URLs are loaded in the clone before capture
-  function waitForCssBackgroundImages(root, timeoutMs = 8000) {
-    const nodes = Array.from(root.querySelectorAll('*'));
-    const urls = [];
-
-    for (const el of nodes) {
-      const bg = getComputedStyle(el).backgroundImage;
-      if (!bg || bg === 'none') continue;
-
-      // Extract all url(...) occurrences
-      const matches = bg.matchAll(/url\(["']?([^"')]+)["']?\)/g);
-      for (const m of matches) {
-        if (m[1]) urls.push(m[1]);
-      }
-    }
-
-    if (!urls.length) return Promise.resolve();
-
-    let timer;
-    const timeout = new Promise((resolve) => {
-      timer = setTimeout(resolve, timeoutMs);
-    });
-
-    const loaders = Promise.all(
-      urls.map((src) => {
-        return new Promise((resolve) => {
-          const img = new Image();
-          img.crossOrigin = 'anonymous';
-          img.onload = () => resolve();
-          img.onerror = () => resolve();
-          img.src = src;
-        });
-      })
-    );
-
-    return Promise.race([loaders, timeout]).finally(() => clearTimeout(timer));
-  }
-
-  // Fix photo background in cloned node by copying computed style precisely
-  async function fixPhotoInClone(cloneRoot) {
-    const originalPhoto = dom.livePhoto;
-    const clonePhoto = cloneRoot.querySelector('#live-photo');
-
-    if (!originalPhoto || !clonePhoto) return;
-
-    const style = getComputedStyle(originalPhoto);
-    clonePhoto.style.backgroundImage = style.backgroundImage;
-    clonePhoto.style.backgroundSize = style.backgroundSize;
-    clonePhoto.style.backgroundPosition = style.backgroundPosition;
-    clonePhoto.style.backgroundRepeat = style.backgroundRepeat;
-    clonePhoto.style.backgroundColor = style.backgroundColor;
-
-    // Force load background-image if present
-    const bg = style.backgroundImage;
-    const m = bg && bg.match(/url\(["']?([^"')]+)["']?\)/);
-    if (m && m[1]) {
-      await new Promise((resolve) => {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => resolve();
-        img.onerror = () => resolve();
-        img.src = m[1];
-      });
-    }
-  }
-
-  async function canvasToBlob(canvas, mime) {
-    return new Promise((resolve) => {
-      canvas.toBlob((blob) => resolve(blob), mime);
-    });
-  }
-
-  async function renderCardCanvas(target, scale) {
-    // Ensure background is set (clone sometimes loses it)
-    const computed = getComputedStyle(target);
-    if (!computed.backgroundImage || computed.backgroundImage === 'none') {
-      target.style.backgroundImage = `url(${BG_IMAGE_URL})`;
-      target.style.backgroundSize = 'cover';
-      target.style.backgroundPosition = 'center';
-      target.style.backgroundRepeat = 'no-repeat';
-    }
-
-    await waitForCssBackgroundImages(target);
-
+  function renderCardCanvas(target, scale) {
     return html2canvas(target, {
+      width: CARD_WIDTH,
+      height: CARD_HEIGHT,
       scale,
       useCORS: true,
       allowTaint: false,
@@ -591,9 +597,6 @@
     btn.classList.add('loading');
 
     const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
-    // IMPORTANT: On desktop browsers, downloads must be initiated from a user gesture.
-    // Open a blank tab immediately (still inside the click) and populate it later.
-    const preOpenedTab = !isIOS ? window.open('', '_blank') : null;
 
     const wrapper = document.createElement('div');
     wrapper.style.cssText = `position:fixed;left:-20000px;top:0;width:${CARD_WIDTH}px;height:${CARD_HEIGHT}px;overflow:hidden;`;
@@ -655,16 +658,25 @@
           return;
         }
 
-        // ✅ Desktop reliable flow: populate the pre-opened tab with image + a download link.
         try {
-          const ok = await openImageWithDownloadLinkFromCanvas(canvas, filename, preOpenedTab);
-          resetDownloadButton(btn);
-
-          if (!ok) {
-            alert('Popup blokeret. Tillad popups for denne side og prøv igen.');
+          const blob = await canvasToBlob(canvas, outputMime);
+          if (blob) {
+            const url = URL.createObjectURL(blob);
+            createDownloadFallback({
+              href: url,
+              filename,
+              cleanup: () => URL.revokeObjectURL(url),
+              button: btn
+            });
+            return;
           }
 
-          return;
+          createDownloadFallback({
+            href: canvas.toDataURL(outputMime),
+            filename,
+            cleanup: null,
+            button: btn
+          });
         } catch (err) {
           console.error('Download error:', err);
           resetDownloadButton(btn);
@@ -704,80 +716,38 @@
     bindLiveText(dom.nameInput, dom.liveName);
 
     if (dom.headerInput && dom.liveHeader) {
-      bindLiveText(dom.headerInput, dom.liveHeader);
-    }
-    bindLiveText(dom.titleInput, dom.titleLive);
-    bindLiveText(dom.subtitleInput, dom.subtitleLive);
-
-    if (dom.logoUpload) {
-      dom.logoUpload.addEventListener('change', async (e) => {
-        const file = e.target.files && e.target.files[0];
-        if (file) await handleLogoUpload(file);
-      });
-    }
-    if (dom.logoRemoveBtn) dom.logoRemoveBtn.addEventListener('click', removeLogo);
-
-    if (dom.photoUpload) {
-      dom.photoUpload.addEventListener('change', async (e) => {
-        const file = e.target.files && e.target.files[0];
-        if (file) await handlePhotoUpload(file);
-      });
-    }
-    if (dom.photoRemoveBtn) dom.photoRemoveBtn.addEventListener('click', removePhoto);
-
-    // Typography / styling controls
-    bindRange(dom.nameSize, byId('name-size-value'), '--name-size', 'px');
-    bindRange(dom.headerSize, byId('header-size-value'), '--header-size', 'px');
-    bindRange(dom.titleSize, byId('title-size-value'), '--title-size', 'px');
-    bindRange(dom.subtitleSize, byId('subtitle-size-value'), '--subtitle-size', 'px');
-
-    bindSelect(dom.headerWeight, '--header-weight');
-    bindSelect(dom.titleWeight, '--title-weight');
-    bindSelect(dom.subtitleWeight, '--subtitle-weight');
-    bindSelect(dom.nameWeight, '--name-weight');
-
-    bindRange(dom.headerLetterSpacing, byId('header-letter-spacing-value'), '--header-letter-spacing', 'em');
-    bindRange(dom.titleLetterSpacing, byId('title-letter-spacing-value'), '--title-letter-spacing', 'em');
-    bindRange(dom.subtitleLetterSpacing, byId('subtitle-letter-spacing-value'), '--subtitle-letter-spacing', 'em');
-    bindRange(dom.nameLetterSpacing, byId('name-letter-spacing-value'), '--name-letter-spacing', 'em');
-
-    bindRange(dom.headerLineHeight, byId('header-line-height-value'), '--header-line-height', '');
-    bindRange(dom.titleLineHeight, byId('title-line-height-value'), '--title-line-height', '');
-    bindRange(dom.subtitleLineHeight, byId('subtitle-line-height-value'), '--subtitle-line-height', '');
-    bindRange(dom.nameLineHeight, byId('name-line-height-value'), '--name-line-height', '');
-
-    bindToggle(dom.headerUppercase, '--header-transform', 'uppercase', 'none');
-    bindToggle(dom.titleUppercase, '--title-transform', 'uppercase', 'none');
-    bindToggle(dom.subtitleUppercase, '--subtitle-transform', 'uppercase', 'none');
-    bindToggle(dom.nameUppercase, '--name-transform', 'uppercase', 'none');
-
-    bindSelect(dom.headerAlign, '--header-align');
-    bindSelect(dom.titleAlign, '--title-align');
-    bindSelect(dom.subtitleAlign, '--subtitle-align');
-    bindSelect(dom.nameAlign, '--name-align');
-
-    if (dom.headerColor) {
-      dom.headerColor.addEventListener('input', () => {
-        document.documentElement.style.setProperty('--header-color', dom.headerColor.value);
-      });
-      document.documentElement.style.setProperty('--header-color', dom.headerColor.value);
+      dom.headerInput.addEventListener('input', updateHeaderPreview);
+      updateHeaderPreview();
     }
 
-    if (dom.downloadBtn) {
-      dom.downloadBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        doDownload(dom.downloadBtn);
+    setupUploadArea({ area: dom.uploadArea, input: dom.fileInput, onFile: loadImage });
+    setupUploadArea({ area: dom.companyUploadArea, input: dom.fileCompanyInput, onFile: loadCompanyImage });
+
+    if (dom.zoomSlider) dom.zoomSlider.addEventListener('input', function onInput() { updateZoom(this.value); });
+    if (dom.floatingZoomSlider) dom.floatingZoomSlider.addEventListener('input', function onInput() { updateZoom(this.value); });
+
+    if (dom.logoSizeSlider) {
+      dom.logoSizeSlider.addEventListener('input', function onInput() {
+        logoScale = parseInt(this.value, 10) || 100;
+        applyLogoSize();
       });
     }
 
-    if (dom.downloadBtnIOS) {
-      dom.downloadBtnIOS.addEventListener('click', (e) => {
-        e.preventDefault();
-        doDownload(dom.downloadBtnIOS);
+    if (dom.floatingLogoSizeSlider) {
+      dom.floatingLogoSizeSlider.addEventListener('input', function onInput() {
+        logoScale = parseInt(this.value, 10) || 100;
+        applyLogoSize();
       });
     }
+
+    setBackgroundImage();
+
+    [dom.btnDesktop, dom.btnMobile].forEach((btn) => {
+      if (!btn) return;
+      btn.dataset.defaultHtml = btn.innerHTML;
+      btn.addEventListener('click', () => doDownload(btn));
+    });
   }
 
-  window.switchTab = switchTab;
   init();
 })();
