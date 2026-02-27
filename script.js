@@ -57,6 +57,7 @@
   let logoScale = 100;
   let photoDragBound = false;
   let lastViewportWidth = window.innerWidth;
+  let bgImageLoadPromise = Promise.resolve();
 
   window.switchTab = (tab) => {
     if (!dom.editPane || !dom.previewPane || !dom.tabEditBtn || !dom.tabPreviewBtn) return;
@@ -334,17 +335,25 @@
     link.style.display = 'none';
     link.href = href;
     link.download = filename;
+    link.rel = 'noopener';
     document.body.appendChild(link);
     link.click();
 
+    // Keep link alive briefly; immediate cleanup can cause intermittent browser download failures.
     setTimeout(() => {
       try {
         link.remove();
       } catch (_) {
         // no-op
       }
-      if (cleanup) cleanup();
-    }, 1000);
+    }, 3000);
+
+    // Delay blob URL cleanup to avoid racing the browser download pipeline.
+    if (cleanup) {
+      setTimeout(() => {
+        cleanup();
+      }, 120000);
+    }
 
     resetDownloadButton(button);
   }
@@ -563,6 +572,59 @@
     })));
   }
 
+  function preloadImageUrl(url, timeoutMs = 8000) {
+    if (!url) return Promise.resolve();
+    return new Promise((resolve) => {
+      const img = new Image();
+      let settled = false;
+
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        img.onload = null;
+        img.onerror = null;
+        resolve();
+      };
+
+      img.onload = done;
+      img.onerror = done;
+      setTimeout(done, timeoutMs);
+      img.src = url;
+    });
+  }
+
+  function extractCssUrls(value) {
+    if (!value || value === 'none') return [];
+    const urls = [];
+    const regex = /url\((['"]?)(.*?)\1\)/g;
+    let match = regex.exec(value);
+    while (match) {
+      const raw = (match[2] || '').trim();
+      if (raw) urls.push(raw);
+      match = regex.exec(value);
+    }
+    return urls;
+  }
+
+  function waitForCssBackgroundImages(root, timeoutMs = 8000) {
+    if (!root) return Promise.resolve();
+
+    const nodes = [root, ...root.querySelectorAll('*')];
+    const urls = new Set();
+
+    nodes.forEach((node) => {
+      const style = window.getComputedStyle(node);
+      extractCssUrls(style.backgroundImage).forEach((url) => urls.add(url));
+    });
+
+    if (urls.size === 0) return Promise.resolve();
+    return Promise.all(Array.from(urls).map((url) => preloadImageUrl(url, timeoutMs)));
+  }
+
+  function wait(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
   function nextFrame() {
     return new Promise((resolve) => requestAnimationFrame(() => resolve()));
   }
@@ -599,7 +661,17 @@
     const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
 
     const wrapper = document.createElement('div');
-    wrapper.style.cssText = `position:fixed;left:-20000px;top:0;width:${CARD_WIDTH}px;height:${CARD_HEIGHT}px;overflow:hidden;`;
+    wrapper.style.cssText = [
+      'position:fixed',
+      'left:0',
+      'top:0',
+      `width:${CARD_WIDTH}px`,
+      `height:${CARD_HEIGHT}px`,
+      'overflow:hidden',
+      'opacity:0',
+      'pointer-events:none',
+      'z-index:-1'
+    ].join(';');
 
     const clone = dom.scaleContainer.cloneNode(true);
     clone.style.width = `${CARD_WIDTH}px`;
@@ -616,21 +688,34 @@
 
     (async () => {
       try {
+        await bgImageLoadPromise;
         await nextFrame();
         await fixPhotoInClone(clone);
         await nextFrame();
         await waitForDocumentFonts();
         await waitForImages(clone);
+        await waitForCssBackgroundImages(clone);
+        await nextFrame();
+        await wait(80);
 
         const target = clonedCardLive || clone;
         const preferredScale = Math.max(2, Math.round(window.devicePixelRatio || 2));
-        let canvas;
+        const renderScales = [preferredScale, 2, 1].filter((v, idx, arr) => arr.indexOf(v) === idx);
+        let canvas = null;
+        let lastRenderErr = null;
 
-        try {
-          canvas = await renderCardCanvas(target, preferredScale);
-        } catch (firstErr) {
-          console.warn('Primary html2canvas render failed, retrying with lower scale.', firstErr);
-          canvas = await renderCardCanvas(target, 1);
+        for (const scale of renderScales) {
+          try {
+            canvas = await renderCardCanvas(target, scale);
+            break;
+          } catch (renderErr) {
+            lastRenderErr = renderErr;
+            await wait(100);
+          }
+        }
+
+        if (!canvas) {
+          throw lastRenderErr || new Error('Canvas render failed');
         }
 
         if (wrapper.parentNode) document.body.removeChild(wrapper);
@@ -741,6 +826,7 @@
     }
 
     setBackgroundImage();
+    bgImageLoadPromise = preloadImageUrl(BG_IMAGE_URL);
 
     [dom.btnDesktop, dom.btnMobile].forEach((btn) => {
       if (!btn) return;
