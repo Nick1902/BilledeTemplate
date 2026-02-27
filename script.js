@@ -334,17 +334,27 @@
     link.style.display = 'none';
     link.href = href;
     link.download = filename;
+    link.rel = 'noopener';
     document.body.appendChild(link);
-    link.click();
 
+    // Fire an explicit click event for better cross-browser reliability.
+    link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+
+    // Keep the anchor around briefly; some browsers fail if it is removed immediately.
     setTimeout(() => {
       try {
         link.remove();
       } catch (_) {
         // no-op
       }
-      if (cleanup) cleanup();
-    }, 1000);
+    }, 10000);
+
+    // Delay blob URL cleanup to avoid "Download failed" races on slower environments.
+    if (cleanup) {
+      setTimeout(() => {
+        cleanup();
+      }, 120000);
+    }
 
     resetDownloadButton(button);
   }
@@ -590,6 +600,8 @@
     });
   }
 
+
+  
   function doDownload(btn) {
     if (!btn || !dom.scaleContainer) return;
 
