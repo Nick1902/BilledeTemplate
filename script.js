@@ -1118,6 +1118,14 @@
         }
 
         if (!canvas) {
+          try {
+            canvas = await renderCardCanvasWithHtmlToImage(target, preferredScale);
+          } catch (renderErr) {
+            lastRenderErr = renderErr;
+          }
+        }
+
+        if (!canvas) {
           console.warn('Clone render failed. Trying live-card fallback.', lastRenderErr);
           if (wrapper.parentNode) document.body.removeChild(wrapper);
           canvas = await renderLiveCardFallback(preferredScale);
