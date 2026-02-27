@@ -59,6 +59,7 @@
   let lastViewportWidth = window.innerWidth;
   let bgImageLoadPromise = Promise.resolve();
   let html2canvasLoadPromise = null;
+  let htmlToImageLoadPromise = null;
   const pendingDesktopDownloads = new WeakMap();
 
   window.switchTab = (tab) => {
@@ -732,6 +733,27 @@
     return html2canvasLoadPromise;
   }
 
+  function ensureHtmlToImageLoaded() {
+    if (window.htmlToImage && typeof window.htmlToImage.toCanvas === 'function') return Promise.resolve();
+    if (htmlToImageLoadPromise) return htmlToImageLoadPromise;
+
+    htmlToImageLoadPromise = (async () => {
+      try {
+        await loadScript('https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js');
+      } catch (_) {
+        await loadScript('https://unpkg.com/html-to-image@1.11.11/dist/html-to-image.js');
+      }
+      if (!window.htmlToImage || typeof window.htmlToImage.toCanvas !== 'function') {
+        throw new Error('html-to-image is unavailable');
+      }
+    })().catch((err) => {
+      htmlToImageLoadPromise = null;
+      throw err;
+    });
+
+    return htmlToImageLoadPromise;
+  }
+
   function canvasToBlob(canvas, mimeType) {
     return new Promise((resolve) => {
       if (!canvas || typeof canvas.toBlob !== 'function') {
@@ -918,6 +940,25 @@
     throw lastRenderErr || new Error('Canvas render failed');
   }
 
+  async function renderCardCanvasWithHtmlToImage(target, preferredScale) {
+    await ensureHtmlToImageLoaded();
+    const ratio = Math.max(1, Math.min(3, preferredScale || 1));
+    const canvas = await window.htmlToImage.toCanvas(target, {
+      cacheBust: true,
+      pixelRatio: ratio,
+      width: CARD_WIDTH,
+      height: CARD_HEIGHT,
+      canvasWidth: Math.round(CARD_WIDTH * ratio),
+      canvasHeight: Math.round(CARD_HEIGHT * ratio)
+    });
+
+    if (!canvas || canvas.width <= 0 || canvas.height <= 0) {
+      throw new Error('html-to-image produced an empty canvas');
+    }
+
+    return canvas;
+  }
+
   function getExportFilename() {
     const rawName = dom.nameInput ? dom.nameInput.value.trim() : '';
     const safeName = rawName.replace(/\s+/g, '-') || 'attendee';
@@ -999,8 +1040,11 @@
       await waitForImages(liveCard);
       await waitForCssBackgroundImages(liveCard);
       sanitizeRenderTree(liveCard);
-
-      canvas = await renderCardCanvasWithStrategy(liveCard, preferredScale);
+      try {
+        canvas = await renderCardCanvasWithStrategy(liveCard, preferredScale);
+      } catch (renderErr) {
+        canvas = await renderCardCanvasWithHtmlToImage(liveCard, preferredScale);
+      }
     } finally {
       liveCard.style.transform = previousTransform;
       liveCard.style.transition = previousTransition;
