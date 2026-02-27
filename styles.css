@@ -558,6 +558,7 @@ input[type="range"] {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   line-height: 1;
+  white-space: nowrap;
 }
 
 .banner-meta {
