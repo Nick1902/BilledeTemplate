@@ -273,6 +273,10 @@
       if (tooLarge) {
         alert(`Logoet er for stort (${probeImg.naturalWidth}x${probeImg.naturalHeight}px). Maks er ${MAX_LOGO_UPLOAD_WIDTH}x${MAX_LOGO_UPLOAD_HEIGHT}px.`);
         if (dom.fileCompanyInput) dom.fileCompanyInput.value = '';
+        if (dom.bannerCompanyImg) {
+          dom.bannerCompanyImg.style.display = 'none';
+          dom.bannerCompanyImg.removeAttribute('src');
+        }
         return;
       }
 
@@ -304,6 +308,10 @@
       URL.revokeObjectURL(probeUrl);
       alert('Kunne ikke læse logo-filen.');
       if (dom.fileCompanyInput) dom.fileCompanyInput.value = '';
+      if (dom.bannerCompanyImg) {
+        dom.bannerCompanyImg.style.display = 'none';
+        dom.bannerCompanyImg.removeAttribute('src');
+      }
     };
 
     probeImg.src = probeUrl;
@@ -505,15 +513,29 @@
 
     const photoW = clonedPhotoInner.offsetWidth || dom.photoInner.offsetWidth;
     const photoH = clonedPhotoInner.offsetHeight || dom.photoInner.offsetHeight;
+    if (photoW <= 0 || photoH <= 0) return Promise.resolve();
 
     return new Promise((resolve) => {
       const nativeImg = new Image();
       nativeImg.onload = () => {
+        if (nativeImg.naturalWidth <= 0 || nativeImg.naturalHeight <= 0) {
+          resolve();
+          return;
+        }
+
         const canvas = document.createElement('canvas');
         canvas.width = photoW;
         canvas.height = photoH;
+        if (canvas.width <= 0 || canvas.height <= 0) {
+          resolve();
+          return;
+        }
 
         const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve();
+          return;
+        }
         const containScale = Math.min(photoW / nativeImg.naturalWidth, photoH / nativeImg.naturalHeight) * (zoom / 100);
         const scaledW = nativeImg.naturalWidth * containScale;
         const scaledH = nativeImg.naturalHeight * containScale;
@@ -535,6 +557,7 @@
         clonedPhotoInner.appendChild(canvas);
         resolve();
       };
+      nativeImg.onerror = () => resolve();
 
       nativeImg.src = imgEl.src;
     });
@@ -549,7 +572,10 @@
   }
 
   function waitForImages(root, timeoutMs = 5000) {
-    const images = Array.from(root.querySelectorAll('img')).filter((img) => Boolean(img.src));
+    const images = Array.from(root.querySelectorAll('img')).filter((img) => {
+      const srcAttr = (img.getAttribute('src') || '').trim();
+      return Boolean(srcAttr);
+    });
     if (images.length === 0) return Promise.resolve();
 
     return Promise.all(images.map((img) => new Promise((resolve) => {
@@ -571,6 +597,31 @@
       img.addEventListener('error', done, { once: true });
       setTimeout(done, timeoutMs);
     })));
+  }
+
+  function sanitizeRenderTree(root) {
+    if (!root) return;
+
+    root.querySelectorAll('canvas').forEach((canvas) => {
+      if ((canvas.width | 0) <= 0 || (canvas.height | 0) <= 0) {
+        canvas.remove();
+      }
+    });
+
+    root.querySelectorAll('img').forEach((img) => {
+      const srcAttr = (img.getAttribute('src') || '').trim();
+      const computed = window.getComputedStyle(img);
+      const hidden = computed.display === 'none' || computed.visibility === 'hidden' || computed.opacity === '0';
+
+      if (!srcAttr) {
+        img.remove();
+        return;
+      }
+
+      if (hidden) {
+        img.remove();
+      }
+    });
   }
 
   function preloadImageUrl(url, timeoutMs = 8000) {
@@ -832,6 +883,7 @@
         await bgImageLoadPromise;
         await nextFrame();
         await fixPhotoInClone(clone);
+        sanitizeRenderTree(clone);
         await nextFrame();
         await waitForDocumentFonts();
         await waitForImages(clone);
@@ -924,6 +976,11 @@
 
     setBackgroundImage();
     bgImageLoadPromise = preloadImageUrl(BG_IMAGE_URL);
+
+    if (dom.bannerCompanyImg) {
+      dom.bannerCompanyImg.style.display = 'none';
+      dom.bannerCompanyImg.removeAttribute('src');
+    }
 
     [dom.btnDesktop, dom.btnMobile].forEach((btn) => {
       if (!btn) return;
