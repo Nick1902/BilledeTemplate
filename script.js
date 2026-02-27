@@ -573,6 +573,55 @@
     })));
   }
 
+  function wait(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  function extractCssUrls(value) {
+    if (!value || value === 'none') return [];
+    const urls = [];
+    const regex = /url\((['"]?)(.*?)\1\)/g;
+    let match = regex.exec(value);
+    while (match) {
+      const raw = (match[2] || '').trim();
+      if (raw) urls.push(raw);
+      match = regex.exec(value);
+    }
+    return urls;
+  }
+
+  function waitForCssBackgroundImages(root, timeoutMs = 7000) {
+    if (!root) return Promise.resolve();
+
+    const nodes = [root, ...root.querySelectorAll('*')];
+    const urls = new Set();
+
+    nodes.forEach((node) => {
+      const style = window.getComputedStyle(node);
+      extractCssUrls(style.backgroundImage).forEach((url) => urls.add(url));
+    });
+
+    if (urls.size === 0) return Promise.resolve();
+
+    return Promise.all(Array.from(urls).map((url) => new Promise((resolve) => {
+      const img = new Image();
+      let settled = false;
+
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        img.onload = null;
+        img.onerror = null;
+        resolve();
+      };
+
+      img.onload = done;
+      img.onerror = done;
+      setTimeout(done, timeoutMs);
+      img.src = url;
+    })));
+  }
+
   function nextFrame() {
     return new Promise((resolve) => requestAnimationFrame(() => resolve()));
   }
@@ -611,7 +660,17 @@
     const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
 
     const wrapper = document.createElement('div');
-    wrapper.style.cssText = `position:fixed;left:-20000px;top:0;width:${CARD_WIDTH}px;height:${CARD_HEIGHT}px;overflow:hidden;`;
+    wrapper.style.cssText = [
+      'position:fixed',
+      'left:0',
+      'top:0',
+      `width:${CARD_WIDTH}px`,
+      `height:${CARD_HEIGHT}px`,
+      'overflow:hidden',
+      'opacity:0',
+      'pointer-events:none',
+      'z-index:-1'
+    ].join(';');
 
     const clone = dom.scaleContainer.cloneNode(true);
     clone.style.width = `${CARD_WIDTH}px`;
@@ -633,6 +692,9 @@
         await nextFrame();
         await waitForDocumentFonts();
         await waitForImages(clone);
+        await waitForCssBackgroundImages(clone);
+        await nextFrame();
+        await wait(60);
 
         const target = clonedCardLive || clone;
         const preferredScale = Math.max(2, Math.round(window.devicePixelRatio || 2));
@@ -642,7 +704,16 @@
           canvas = await renderCardCanvas(target, preferredScale);
         } catch (firstErr) {
           console.warn('Primary html2canvas render failed, retrying with lower scale.', firstErr);
-          canvas = await renderCardCanvas(target, 1);
+          await wait(120);
+          await waitForImages(clone);
+          await waitForCssBackgroundImages(clone);
+          try {
+            canvas = await renderCardCanvas(target, 1);
+          } catch (secondErr) {
+            console.warn('Secondary html2canvas render failed, retrying on live card.', secondErr);
+            await wait(120);
+            canvas = await renderCardCanvas(dom.cardLive, 1);
+          }
         }
 
         if (wrapper.parentNode) document.body.removeChild(wrapper);
