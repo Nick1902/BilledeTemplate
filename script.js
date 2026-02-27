@@ -574,12 +574,21 @@
   function waitForImages(root, timeoutMs = 5000) {
     const images = Array.from(root.querySelectorAll('img')).filter((img) => {
       const srcAttr = (img.getAttribute('src') || '').trim();
-      return Boolean(srcAttr);
+      if (!srcAttr) return false;
+      const computed = window.getComputedStyle(img);
+      const hidden = computed.display === 'none' || computed.visibility === 'hidden' || computed.opacity === '0';
+      return !hidden;
     });
     if (images.length === 0) return Promise.resolve();
 
     return Promise.all(images.map((img) => new Promise((resolve) => {
       if (img.complete && img.naturalWidth > 0) {
+        resolve();
+        return;
+      }
+
+      if (img.complete && img.naturalWidth <= 0) {
+        img.remove();
         resolve();
         return;
       }
@@ -590,6 +599,9 @@
         settled = true;
         img.removeEventListener('load', done);
         img.removeEventListener('error', done);
+        if (img.complete && img.naturalWidth <= 0) {
+          img.remove();
+        }
         resolve();
       };
 
@@ -614,6 +626,11 @@
       const hidden = computed.display === 'none' || computed.visibility === 'hidden' || computed.opacity === '0';
 
       if (!srcAttr) {
+        img.remove();
+        return;
+      }
+
+      if (img.complete && img.naturalWidth <= 0) {
         img.remove();
         return;
       }
@@ -748,7 +765,28 @@
       allowTaint: false,
       backgroundColor: null,
       logging: false,
-      imageTimeout: 15000
+      imageTimeout: 15000,
+      ignoreElements: (el) => {
+        if (!el || !el.tagName) return false;
+        const tag = el.tagName.toUpperCase();
+
+        if (tag === 'CANVAS') {
+          return (el.width | 0) <= 0 || (el.height | 0) <= 0;
+        }
+
+        if (tag === 'IMG') {
+          const srcAttr = (el.getAttribute('src') || '').trim();
+          if (!srcAttr) return true;
+
+          if (el.complete && el.naturalWidth <= 0) return true;
+
+          const computed = window.getComputedStyle(el);
+          const hidden = computed.display === 'none' || computed.visibility === 'hidden' || computed.opacity === '0';
+          if (hidden) return true;
+        }
+
+        return false;
+      }
     });
   }
 
@@ -820,6 +858,7 @@
       await waitForDocumentFonts();
       await waitForImages(liveCard);
       await waitForCssBackgroundImages(liveCard);
+      sanitizeRenderTree(liveCard);
 
       const renderScales = [preferredScale, 2, 1].filter((v, idx, arr) => arr.indexOf(v) === idx);
       for (const scale of renderScales) {
@@ -888,6 +927,7 @@
         await waitForDocumentFonts();
         await waitForImages(clone);
         await waitForCssBackgroundImages(clone);
+        sanitizeRenderTree(clone);
         await nextFrame();
         await wait(80);
 
