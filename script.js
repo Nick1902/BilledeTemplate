@@ -534,23 +534,97 @@
     document.body.appendChild(overlay);
   }
 
-  function fixPhotoInClone(clone) {
-    if (!imgEl || !imgEl.src || !dom.photoInner) return Promise.resolve();
+  async function fixPhotoInClone(clone) {
+    if (!imgEl || !imgEl.src || !dom.photoInner) return;
 
     const clonedPhotoInner = clone.querySelector('#photo-inner');
-    if (!clonedPhotoInner) return Promise.resolve();
+    if (!clonedPhotoInner) return;
 
     const clonedImg = clonedPhotoInner.querySelector('img');
-    if (!clonedImg) return Promise.resolve();
+    if (!clonedImg) return;
 
-    clonedImg.src = imgEl.src;
-    clonedImg.style.transform = imgEl.style.transform || '';
-    clonedImg.style.objectFit = 'contain';
-    clonedImg.style.objectPosition = 'center';
-    clonedImg.style.width = '100%';
-    clonedImg.style.height = '100%';
+    const source = new Image();
+    source.decoding = 'async';
 
-    return Promise.resolve();
+    const loaded = await new Promise((resolve) => {
+      let settled = false;
+      const done = (ok) => {
+        if (settled) return;
+        settled = true;
+        resolve(ok);
+      };
+      source.onload = () => done(true);
+      source.onerror = () => done(false);
+      setTimeout(() => done(false), 5000);
+      source.src = imgEl.currentSrc || imgEl.src;
+      if (source.complete && source.naturalWidth > 0) done(true);
+    });
+
+    if (!loaded || source.naturalWidth <= 0 || source.naturalHeight <= 0) {
+      // Fallback to the previous style-copy behavior if rasterization cannot run.
+      clonedImg.src = imgEl.src;
+      clonedImg.style.transform = imgEl.style.transform || '';
+      clonedImg.style.objectFit = 'contain';
+      clonedImg.style.objectPosition = 'center';
+      clonedImg.style.width = '100%';
+      clonedImg.style.height = '100%';
+      return;
+    }
+
+    const boxW = Math.max(
+      1,
+      Math.round(clonedPhotoInner.clientWidth || dom.photoInner.clientWidth || 420)
+    );
+    const boxH = Math.max(
+      1,
+      Math.round(clonedPhotoInner.clientHeight || dom.photoInner.clientHeight || 420)
+    );
+
+    const canvas = document.createElement('canvas');
+    canvas.width = boxW;
+    canvas.height = boxH;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      clonedImg.src = imgEl.src;
+      clonedImg.style.transform = imgEl.style.transform || '';
+      clonedImg.style.objectFit = 'contain';
+      clonedImg.style.objectPosition = 'center';
+      clonedImg.style.width = '100%';
+      clonedImg.style.height = '100%';
+      return;
+    }
+
+    // Reproduce the current preview behavior deterministically:
+    // base placement uses object-fit: contain, then apply translate + scale from UI state.
+    const containScale = Math.min(boxW / source.naturalWidth, boxH / source.naturalHeight);
+    const baseW = source.naturalWidth * containScale;
+    const baseH = source.naturalHeight * containScale;
+    const baseX = (boxW - baseW) / 2;
+    const baseY = (boxH - baseH) / 2;
+
+    const zoomScale = zoom / 100;
+    const originX = boxW / 2;
+    const originY = boxH / 2;
+
+    const drawW = baseW * zoomScale;
+    const drawH = baseH * zoomScale;
+    const drawX = originX + zoomScale * (baseX - originX) + imgX;
+    const drawY = originY + zoomScale * (baseY - originY) + imgY;
+
+    ctx.clearRect(0, 0, boxW, boxH);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, boxW, boxH);
+    ctx.clip();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(source, drawX, drawY, drawW, drawH);
+    ctx.restore();
+
+    canvas.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;display:block;';
+    clonedPhotoInner.innerHTML = '';
+    clonedPhotoInner.appendChild(canvas);
   }
 
   function waitForDocumentFonts(timeoutMs = 3000) {
