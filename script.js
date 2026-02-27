@@ -58,6 +58,7 @@
   let photoDragBound = false;
   let lastViewportWidth = window.innerWidth;
   let bgImageLoadPromise = Promise.resolve();
+  let html2canvasLoadPromise = null;
 
   window.switchTab = (tab) => {
     if (!dom.editPane || !dom.previewPane || !dom.tabEditBtn || !dom.tabPreviewBtn) return;
@@ -629,6 +630,51 @@
     return new Promise((resolve) => requestAnimationFrame(() => resolve()));
   }
 
+  function loadScript(src, timeoutMs = 12000) {
+    return new Promise((resolve, reject) => {
+      const existing = Array.from(document.scripts).find((script) => script.src === src);
+      if (existing) {
+        if (existing.dataset.loaded === '1') {
+          resolve();
+          return;
+        }
+        existing.addEventListener('load', () => resolve(), { once: true });
+        existing.addEventListener('error', () => reject(new Error(`Failed to load script: ${src}`)), { once: true });
+        setTimeout(() => reject(new Error(`Script load timeout: ${src}`)), timeoutMs);
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = src;
+      script.async = true;
+      script.crossOrigin = 'anonymous';
+      script.onload = () => {
+        script.dataset.loaded = '1';
+        resolve();
+      };
+      script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
+      document.head.appendChild(script);
+      setTimeout(() => reject(new Error(`Script load timeout: ${src}`)), timeoutMs);
+    });
+  }
+
+  function ensureHtml2CanvasLoaded() {
+    if (typeof window.html2canvas === 'function') return Promise.resolve();
+    if (html2canvasLoadPromise) return html2canvasLoadPromise;
+
+    html2canvasLoadPromise = (async () => {
+      await loadScript('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js');
+      if (typeof window.html2canvas !== 'function') {
+        throw new Error('html2canvas is unavailable');
+      }
+    })().catch((err) => {
+      html2canvasLoadPromise = null;
+      throw err;
+    });
+
+    return html2canvasLoadPromise;
+  }
+
   function canvasToBlob(canvas, mimeType) {
     return new Promise((resolve) => {
       if (!canvas || typeof canvas.toBlob !== 'function') {
@@ -640,7 +686,10 @@
   }
 
   function renderCardCanvas(target, scale) {
-    return html2canvas(target, {
+    if (typeof window.html2canvas !== 'function') {
+      return Promise.reject(new Error('html2canvas is not loaded'));
+    }
+    return window.html2canvas(target, {
       width: CARD_WIDTH,
       height: CARD_HEIGHT,
       scale,
@@ -650,6 +699,97 @@
       logging: false,
       imageTimeout: 15000
     });
+  }
+
+  function getExportFilename() {
+    const rawName = dom.nameInput ? dom.nameInput.value.trim() : '';
+    const safeName = rawName.replace(/\s+/g, '-') || 'attendee';
+    return `optimeet-card-${safeName}.png`;
+  }
+
+  async function downloadCanvas(canvas, btn, isIOS) {
+    const outputMime = 'image/png';
+    const filename = getExportFilename();
+
+    if (isIOS) {
+      canvas.toBlob(async (blob) => {
+        if (!blob) {
+          resetDownloadButton(btn);
+          alert('Kunne ikke generere billede.');
+          return;
+        }
+        const file = new File([blob], filename, { type: 'image/png' });
+        showIOSSaveOptions({ file, canvas, button: btn });
+      }, outputMime);
+      return;
+    }
+
+    try {
+      const blob = await canvasToBlob(canvas, outputMime);
+      if (blob) {
+        const url = URL.createObjectURL(blob);
+        createDownloadFallback({
+          href: url,
+          filename,
+          cleanup: () => URL.revokeObjectURL(url),
+          button: btn
+        });
+        return;
+      }
+
+      createDownloadFallback({
+        href: canvas.toDataURL(outputMime),
+        filename,
+        cleanup: null,
+        button: btn
+      });
+    } catch (err) {
+      console.error('Download error:', err);
+      resetDownloadButton(btn);
+      alert('Download mislykkedes pga. en sikkerhedsbegrænsning.');
+    }
+  }
+
+  async function renderLiveCardFallback(preferredScale) {
+    if (!dom.cardLive) throw new Error('Missing live card');
+
+    const liveCard = dom.cardLive;
+    const previousTransform = liveCard.style.transform;
+    const previousTransition = liveCard.style.transition;
+
+    liveCard.style.transition = 'none';
+    liveCard.style.transform = 'scale(1)';
+
+    let canvas = null;
+    let lastRenderErr = null;
+
+    try {
+      await nextFrame();
+      await nextFrame();
+      await waitForDocumentFonts();
+      await waitForImages(liveCard);
+      await waitForCssBackgroundImages(liveCard);
+
+      const renderScales = [preferredScale, 2, 1].filter((v, idx, arr) => arr.indexOf(v) === idx);
+      for (const scale of renderScales) {
+        try {
+          canvas = await renderCardCanvas(liveCard, scale);
+          break;
+        } catch (renderErr) {
+          lastRenderErr = renderErr;
+          await wait(100);
+        }
+      }
+    } finally {
+      liveCard.style.transform = previousTransform;
+      liveCard.style.transition = previousTransition;
+    }
+
+    if (!canvas) {
+      throw lastRenderErr || new Error('Live card fallback render failed');
+    }
+
+    return canvas;
   }
 
   function doDownload(btn) {
@@ -688,6 +828,7 @@
 
     (async () => {
       try {
+        await ensureHtml2CanvasLoaded();
         await bgImageLoadPromise;
         await nextFrame();
         await fixPhotoInClone(clone);
@@ -715,63 +856,19 @@
         }
 
         if (!canvas) {
-          throw lastRenderErr || new Error('Canvas render failed');
+          console.warn('Clone render failed. Trying live-card fallback.', lastRenderErr);
+          if (wrapper.parentNode) document.body.removeChild(wrapper);
+          canvas = await renderLiveCardFallback(preferredScale);
         }
 
         if (wrapper.parentNode) document.body.removeChild(wrapper);
-
-        const outputMime = 'image/png';
-        const outputExt = 'png';
-        const rawName = dom.nameInput ? dom.nameInput.value.trim() : '';
-        const safeName = rawName.replace(/\s+/g, '-') || 'attendee';
-        const filename = `optimeet-card-${safeName}.${outputExt}`;
-
-        if (isIOS) {
-          canvas.toBlob(async (blob) => {
-            if (!blob) {
-              resetDownloadButton(btn);
-              alert('Kunne ikke generere billede.');
-              return;
-            }
-
-            const iosRawName = dom.nameInput ? dom.nameInput.value.trim() : '';
-            const iosSafeName = iosRawName.replace(/\s+/g, '-') || 'attendee';
-            const iosFilename = `optimeet-card-${iosSafeName}.png`;
-            const file = new File([blob], iosFilename, { type: 'image/png' });
-            showIOSSaveOptions({ file, canvas, button: btn });
-          }, 'image/png');
-          return;
-        }
-
-        try {
-          const blob = await canvasToBlob(canvas, outputMime);
-          if (blob) {
-            const url = URL.createObjectURL(blob);
-            createDownloadFallback({
-              href: url,
-              filename,
-              cleanup: () => URL.revokeObjectURL(url),
-              button: btn
-            });
-            return;
-          }
-
-          createDownloadFallback({
-            href: canvas.toDataURL(outputMime),
-            filename,
-            cleanup: null,
-            button: btn
-          });
-        } catch (err) {
-          console.error('Download error:', err);
-          resetDownloadButton(btn);
-          alert('Download mislykkedes pga. en sikkerhedsbegrænsning.');
-        }
+        await downloadCanvas(canvas, btn, isIOS);
       } catch (err) {
         if (wrapper.parentNode) document.body.removeChild(wrapper);
         console.error('html2canvas error:', err);
         resetDownloadButton(btn);
-        alert('Download mislykkedes. Prøv igen.');
+        const msg = err && err.message ? err.message : 'ukendt fejl';
+        alert(`Download mislykkedes. Prøv igen.\nFejl: ${msg}`);
       }
     })();
   }
