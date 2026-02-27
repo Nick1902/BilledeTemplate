@@ -753,14 +753,24 @@
     });
   }
 
-  function renderCardCanvas(target, scale) {
+  function buildRenderAttempts(preferredScale) {
+    const scales = [preferredScale, 2, 1].filter((v, idx, arr) => arr.indexOf(v) === idx);
+    const attempts = [];
+    scales.forEach((scale) => attempts.push({ scale, foreignObject: false }));
+    scales.forEach((scale) => attempts.push({ scale, foreignObject: true }));
+    return attempts;
+  }
+
+  function renderCardCanvas(target, scale, options = {}) {
     if (typeof window.html2canvas !== 'function') {
       return Promise.reject(new Error('html2canvas is not loaded'));
     }
+    const foreignObjectRendering = Boolean(options.foreignObject);
     return window.html2canvas(target, {
       width: CARD_WIDTH,
       height: CARD_HEIGHT,
       scale,
+      foreignObjectRendering,
       useCORS: true,
       allowTaint: false,
       backgroundColor: null,
@@ -860,10 +870,10 @@
       await waitForCssBackgroundImages(liveCard);
       sanitizeRenderTree(liveCard);
 
-      const renderScales = [preferredScale, 2, 1].filter((v, idx, arr) => arr.indexOf(v) === idx);
-      for (const scale of renderScales) {
+      const renderAttempts = buildRenderAttempts(preferredScale);
+      for (const attempt of renderAttempts) {
         try {
-          canvas = await renderCardCanvas(liveCard, scale);
+          canvas = await renderCardCanvas(liveCard, attempt.scale, { foreignObject: attempt.foreignObject });
           break;
         } catch (renderErr) {
           lastRenderErr = renderErr;
@@ -933,13 +943,13 @@
 
         const target = clonedCardLive || clone;
         const preferredScale = Math.max(2, Math.round(window.devicePixelRatio || 2));
-        const renderScales = [preferredScale, 2, 1].filter((v, idx, arr) => arr.indexOf(v) === idx);
+        const renderAttempts = buildRenderAttempts(preferredScale);
         let canvas = null;
         let lastRenderErr = null;
 
-        for (const scale of renderScales) {
+        for (const attempt of renderAttempts) {
           try {
-            canvas = await renderCardCanvas(target, scale);
+            canvas = await renderCardCanvas(target, attempt.scale, { foreignObject: attempt.foreignObject });
             break;
           } catch (renderErr) {
             lastRenderErr = renderErr;
