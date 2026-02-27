@@ -511,56 +511,17 @@
     const clonedPhotoInner = clone.querySelector('#photo-inner');
     if (!clonedPhotoInner) return Promise.resolve();
 
-    const photoW = clonedPhotoInner.offsetWidth || dom.photoInner.offsetWidth;
-    const photoH = clonedPhotoInner.offsetHeight || dom.photoInner.offsetHeight;
-    if (photoW <= 0 || photoH <= 0) return Promise.resolve();
+    const clonedImg = clonedPhotoInner.querySelector('img');
+    if (!clonedImg) return Promise.resolve();
 
-    return new Promise((resolve) => {
-      const nativeImg = new Image();
-      nativeImg.onload = () => {
-        if (nativeImg.naturalWidth <= 0 || nativeImg.naturalHeight <= 0) {
-          resolve();
-          return;
-        }
+    clonedImg.src = imgEl.src;
+    clonedImg.style.transform = imgEl.style.transform || '';
+    clonedImg.style.objectFit = 'contain';
+    clonedImg.style.objectPosition = 'center';
+    clonedImg.style.width = '100%';
+    clonedImg.style.height = '100%';
 
-        const canvas = document.createElement('canvas');
-        canvas.width = photoW;
-        canvas.height = photoH;
-        if (canvas.width <= 0 || canvas.height <= 0) {
-          resolve();
-          return;
-        }
-
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolve();
-          return;
-        }
-        const containScale = Math.min(photoW / nativeImg.naturalWidth, photoH / nativeImg.naturalHeight) * (zoom / 100);
-        const scaledW = nativeImg.naturalWidth * containScale;
-        const scaledH = nativeImg.naturalHeight * containScale;
-        const drawX = (photoW - scaledW) / 2 + imgX;
-        const drawY = (photoH - scaledH) / 2 + imgY;
-
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(0, 0, photoW, photoH);
-        ctx.clip();
-        ctx.drawImage(nativeImg, drawX, drawY, scaledW, scaledH);
-        ctx.restore();
-
-        canvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;';
-
-        const clonedImg = clonedPhotoInner.querySelector('img');
-        if (clonedImg) clonedImg.remove();
-
-        clonedPhotoInner.appendChild(canvas);
-        resolve();
-      };
-      nativeImg.onerror = () => resolve();
-
-      nativeImg.src = imgEl.src;
-    });
+    return Promise.resolve();
   }
 
   function waitForDocumentFonts(timeoutMs = 3000) {
@@ -755,22 +716,17 @@
 
   function buildRenderAttempts(preferredScale) {
     const scales = [preferredScale, 2, 1].filter((v, idx, arr) => arr.indexOf(v) === idx);
-    const attempts = [];
-    scales.forEach((scale) => attempts.push({ scale, foreignObject: false }));
-    scales.forEach((scale) => attempts.push({ scale, foreignObject: true }));
-    return attempts;
+    return scales.map((scale) => ({ scale }));
   }
 
   function renderCardCanvas(target, scale, options = {}) {
     if (typeof window.html2canvas !== 'function') {
       return Promise.reject(new Error('html2canvas is not loaded'));
     }
-    const foreignObjectRendering = Boolean(options.foreignObject);
     return window.html2canvas(target, {
       width: CARD_WIDTH,
       height: CARD_HEIGHT,
       scale,
-      foreignObjectRendering,
       useCORS: true,
       allowTaint: false,
       backgroundColor: null,
@@ -873,7 +829,7 @@
       const renderAttempts = buildRenderAttempts(preferredScale);
       for (const attempt of renderAttempts) {
         try {
-          canvas = await renderCardCanvas(liveCard, attempt.scale, { foreignObject: attempt.foreignObject });
+          canvas = await renderCardCanvas(liveCard, attempt.scale);
           break;
         } catch (renderErr) {
           lastRenderErr = renderErr;
@@ -949,7 +905,7 @@
 
         for (const attempt of renderAttempts) {
           try {
-            canvas = await renderCardCanvas(target, attempt.scale, { foreignObject: attempt.foreignObject });
+            canvas = await renderCardCanvas(target, attempt.scale);
             break;
           } catch (renderErr) {
             lastRenderErr = renderErr;
