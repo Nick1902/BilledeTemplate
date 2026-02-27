@@ -534,7 +534,7 @@
     document.body.appendChild(overlay);
   }
 
-  async function fixPhotoInClone(clone) {
+  async function fixPhotoInClone(clone, renderScale = 1) {
     if (!imgEl || !imgEl.src || !dom.photoInner) return;
 
     const clonedPhotoInner = clone.querySelector('#photo-inner');
@@ -580,9 +580,10 @@
       Math.round(clonedPhotoInner.clientHeight || dom.photoInner.clientHeight || 420)
     );
 
+    const exportScale = Math.max(1, Number(renderScale) || 1);
     const canvas = document.createElement('canvas');
-    canvas.width = boxW;
-    canvas.height = boxH;
+    canvas.width = Math.max(1, Math.round(boxW * exportScale));
+    canvas.height = Math.max(1, Math.round(boxH * exportScale));
 
     const ctx = canvas.getContext('2d');
     if (!ctx) {
@@ -612,8 +613,9 @@
     const drawX = originX + zoomScale * (baseX - originX) + imgX;
     const drawY = originY + zoomScale * (baseY - originY) + imgY;
 
-    ctx.clearRect(0, 0, boxW, boxH);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.save();
+    ctx.scale(exportScale, exportScale);
     ctx.beginPath();
     ctx.rect(0, 0, boxW, boxH);
     ctx.clip();
@@ -1169,8 +1171,9 @@
       try {
         await ensureHtml2CanvasLoaded();
         await bgImageLoadPromise;
+        const preferredScale = Math.max(2, Math.round(window.devicePixelRatio || 2));
         await nextFrame();
-        await fixPhotoInClone(clone);
+        await fixPhotoInClone(clone, preferredScale);
         sanitizeRenderTree(clone);
         await nextFrame();
         await waitForDocumentFonts();
@@ -1181,7 +1184,6 @@
         await wait(80);
 
         const target = clonedCardLive || clone;
-        const preferredScale = Math.max(2, Math.round(window.devicePixelRatio || 2));
         let canvas = null;
         let lastRenderErr = null;
 
