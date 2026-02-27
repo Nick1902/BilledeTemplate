@@ -59,6 +59,7 @@
   let lastViewportWidth = window.innerWidth;
   let bgImageLoadPromise = Promise.resolve();
   let html2canvasLoadPromise = null;
+  const pendingDesktopDownloads = new WeakMap();
 
   window.switchTab = (tab) => {
     if (!dom.editPane || !dom.previewPane || !dom.tabEditBtn || !dom.tabPreviewBtn) return;
@@ -335,6 +336,33 @@
     } else {
       btn.textContent = '⬇ Hent billede';
     }
+    btn.classList.remove('loading');
+  }
+
+  function isIOSDevice() {
+    return /iPhone|iPad|iPod/.test(navigator.userAgent);
+  }
+
+  function shouldUseDesktopTwoStep(btn, isIOS) {
+    return !isIOS && btn && btn === dom.btnDesktop;
+  }
+
+  function consumePendingDesktopDownload(btn) {
+    const pending = pendingDesktopDownloads.get(btn);
+    if (!pending) return false;
+    pendingDesktopDownloads.delete(btn);
+    createDownloadFallback({
+      href: pending.href,
+      filename: pending.filename,
+      cleanup: pending.cleanup,
+      button: btn
+    });
+    return true;
+  }
+
+  function setDesktopDownloadReady(btn, payload) {
+    pendingDesktopDownloads.set(btn, payload);
+    btn.textContent = '⬇ Download billede';
     btn.classList.remove('loading');
   }
 
@@ -719,10 +747,105 @@
     return scales.map((scale) => ({ scale }));
   }
 
+  function isCreatePatternZeroSizeError(err) {
+    const msg = (err && err.message ? err.message : '').toLowerCase();
+    return msg.includes('createpattern') && msg.includes('width or height of 0');
+  }
+
+  function drawCoverImage(ctx, img, width, height) {
+    const scale = Math.max(width / img.naturalWidth, height / img.naturalHeight);
+    const drawW = img.naturalWidth * scale;
+    const drawH = img.naturalHeight * scale;
+    const drawX = (width - drawW) / 2;
+    const drawY = (height - drawH) / 2;
+    ctx.drawImage(img, drawX, drawY, drawW, drawH);
+  }
+
+  async function drawCardBackgroundLayers(canvas) {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
+
+    try {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      const loaded = await new Promise((resolve) => {
+        let settled = false;
+        const done = (ok) => {
+          if (settled) return;
+          settled = true;
+          resolve(ok);
+        };
+        img.onload = () => done(true);
+        img.onerror = () => done(false);
+        setTimeout(() => done(false), 8000);
+        img.src = BG_IMAGE_URL;
+      });
+
+      if (loaded && img.naturalWidth > 0 && img.naturalHeight > 0) {
+        drawCoverImage(ctx, img, CARD_WIDTH, CARD_HEIGHT);
+      } else {
+        const fallbackBase = ctx.createLinearGradient(0, 0, CARD_WIDTH, CARD_HEIGHT);
+        fallbackBase.addColorStop(0, '#0a1440');
+        fallbackBase.addColorStop(1, '#1a0a40');
+        ctx.fillStyle = fallbackBase;
+        ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
+      }
+    } catch (_) {
+      const fallbackBase = ctx.createLinearGradient(0, 0, CARD_WIDTH, CARD_HEIGHT);
+      fallbackBase.addColorStop(0, '#0a1440');
+      fallbackBase.addColorStop(1, '#1a0a40');
+      ctx.fillStyle = fallbackBase;
+      ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
+    }
+
+    const overlay = ctx.createLinearGradient(0, 0, CARD_WIDTH, CARD_HEIGHT);
+    overlay.addColorStop(0, 'rgba(10,14,50,0.72)');
+    overlay.addColorStop(0.5, 'rgba(20,10,60,0.55)');
+    overlay.addColorStop(1, 'rgba(5,5,20,0.85)');
+    ctx.fillStyle = overlay;
+    ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
+
+    // Approximate the visual rays layer to preserve look when safe-render mode is used.
+    ctx.save();
+    ctx.strokeStyle = 'rgba(80,120,255,0.08)';
+    ctx.lineWidth = 3;
+    ctx.translate(CARD_WIDTH * 0.38, CARD_HEIGHT * 0.5);
+    ctx.rotate((-30 * Math.PI) / 180);
+    ctx.beginPath();
+    ctx.moveTo(0, -CARD_HEIGHT * 0.7);
+    ctx.lineTo(0, CARD_HEIGHT * 0.7);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(80,120,255,0.08)';
+    ctx.lineWidth = 3;
+    ctx.translate(CARD_WIDTH * 0.55, CARD_HEIGHT * 0.5);
+    ctx.rotate((-20 * Math.PI) / 180);
+    ctx.beginPath();
+    ctx.moveTo(0, -CARD_HEIGHT * 0.7);
+    ctx.lineTo(0, CARD_HEIGHT * 0.7);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  async function composeBackgroundWithForeground(foregroundCanvas) {
+    const out = document.createElement('canvas');
+    out.width = CARD_WIDTH;
+    out.height = CARD_HEIGHT;
+    await drawCardBackgroundLayers(out);
+    const outCtx = out.getContext('2d');
+    if (outCtx) outCtx.drawImage(foregroundCanvas, 0, 0);
+    return out;
+  }
+
   function renderCardCanvas(target, scale, options = {}) {
     if (typeof window.html2canvas !== 'function') {
       return Promise.reject(new Error('html2canvas is not loaded'));
     }
+    const safeMode = Boolean(options.safeMode);
     return window.html2canvas(target, {
       width: CARD_WIDTH,
       height: CARD_HEIGHT,
@@ -752,8 +875,47 @@
         }
 
         return false;
+      },
+      onclone: (doc) => {
+        if (!safeMode) return;
+        const bg = doc.getElementById('card-bg');
+        if (bg) {
+          bg.style.background = 'none';
+          bg.style.backgroundImage = 'none';
+        }
+        doc.querySelectorAll('.card-rays').forEach((el) => {
+          el.style.display = 'none';
+        });
       }
     });
+  }
+
+  async function renderCardCanvasWithStrategy(target, preferredScale) {
+    const renderAttempts = buildRenderAttempts(preferredScale);
+    let lastRenderErr = null;
+
+    for (const attempt of renderAttempts) {
+      try {
+        return await renderCardCanvas(target, attempt.scale);
+      } catch (renderErr) {
+        lastRenderErr = renderErr;
+        await wait(100);
+      }
+    }
+
+    if (isCreatePatternZeroSizeError(lastRenderErr)) {
+      for (const attempt of renderAttempts) {
+        try {
+          const foreground = await renderCardCanvas(target, attempt.scale, { safeMode: true });
+          return await composeBackgroundWithForeground(foreground);
+        } catch (renderErr) {
+          lastRenderErr = renderErr;
+          await wait(100);
+        }
+      }
+    }
+
+    throw lastRenderErr || new Error('Canvas render failed');
   }
 
   function getExportFilename() {
@@ -765,6 +927,7 @@
   async function downloadCanvas(canvas, btn, isIOS) {
     const outputMime = 'image/png';
     const filename = getExportFilename();
+    const useDesktopTwoStep = shouldUseDesktopTwoStep(btn, isIOS);
 
     if (isIOS) {
       canvas.toBlob(async (blob) => {
@@ -783,6 +946,14 @@
       const blob = await canvasToBlob(canvas, outputMime);
       if (blob) {
         const url = URL.createObjectURL(blob);
+        if (useDesktopTwoStep) {
+          setDesktopDownloadReady(btn, {
+            href: url,
+            filename,
+            cleanup: () => URL.revokeObjectURL(url)
+          });
+          return;
+        }
         createDownloadFallback({
           href: url,
           filename,
@@ -792,12 +963,16 @@
         return;
       }
 
-      createDownloadFallback({
-        href: canvas.toDataURL(outputMime),
-        filename,
-        cleanup: null,
-        button: btn
-      });
+      const dataUrl = canvas.toDataURL(outputMime);
+      if (useDesktopTwoStep) {
+        setDesktopDownloadReady(btn, {
+          href: dataUrl,
+          filename,
+          cleanup: null
+        });
+        return;
+      }
+      createDownloadFallback({ href: dataUrl, filename, cleanup: null, button: btn });
     } catch (err) {
       console.error('Download error:', err);
       resetDownloadButton(btn);
@@ -816,7 +991,6 @@
     liveCard.style.transform = 'scale(1)';
 
     let canvas = null;
-    let lastRenderErr = null;
 
     try {
       await nextFrame();
@@ -826,23 +1000,14 @@
       await waitForCssBackgroundImages(liveCard);
       sanitizeRenderTree(liveCard);
 
-      const renderAttempts = buildRenderAttempts(preferredScale);
-      for (const attempt of renderAttempts) {
-        try {
-          canvas = await renderCardCanvas(liveCard, attempt.scale);
-          break;
-        } catch (renderErr) {
-          lastRenderErr = renderErr;
-          await wait(100);
-        }
-      }
+      canvas = await renderCardCanvasWithStrategy(liveCard, preferredScale);
     } finally {
       liveCard.style.transform = previousTransform;
       liveCard.style.transition = previousTransition;
     }
 
     if (!canvas) {
-      throw lastRenderErr || new Error('Live card fallback render failed');
+      throw new Error('Live card fallback render failed');
     }
 
     return canvas;
@@ -854,7 +1019,7 @@
     btn.textContent = '⏳ Genererer...';
     btn.classList.add('loading');
 
-    const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    const isIOS = isIOSDevice();
 
     const wrapper = document.createElement('div');
     wrapper.style.cssText = [
@@ -899,18 +1064,13 @@
 
         const target = clonedCardLive || clone;
         const preferredScale = Math.max(2, Math.round(window.devicePixelRatio || 2));
-        const renderAttempts = buildRenderAttempts(preferredScale);
         let canvas = null;
         let lastRenderErr = null;
 
-        for (const attempt of renderAttempts) {
-          try {
-            canvas = await renderCardCanvas(target, attempt.scale);
-            break;
-          } catch (renderErr) {
-            lastRenderErr = renderErr;
-            await wait(100);
-          }
+        try {
+          canvas = await renderCardCanvasWithStrategy(target, preferredScale);
+        } catch (renderErr) {
+          lastRenderErr = renderErr;
         }
 
         if (!canvas) {
@@ -991,7 +1151,10 @@
     [dom.btnDesktop, dom.btnMobile].forEach((btn) => {
       if (!btn) return;
       btn.dataset.defaultHtml = btn.innerHTML;
-      btn.addEventListener('click', () => doDownload(btn));
+      btn.addEventListener('click', () => {
+        if (consumePendingDesktopDownload(btn)) return;
+        doDownload(btn);
+      });
     });
   }
 
